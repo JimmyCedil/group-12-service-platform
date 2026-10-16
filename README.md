@@ -6,8 +6,9 @@ technicians, invoices, and payments.
 ## Current progress
 
 The backend foundation is set up with TypeScript and Express.
-A health endpoint and an automated test are included.
-Database connections and business features are still in development.
+A health endpoint and a basic in-memory customer list are included.
+Customer records are lost when the server restarts; database persistence
+and the remaining business features are still in development.
 
 ## Tools
 
@@ -15,6 +16,7 @@ Database connections and business features are still in development.
 - TypeScript
 - Express
 - dotenv
+- tsx
 - Vitest and Supertest
 - ESLint
 
@@ -65,13 +67,19 @@ Press Control + C in the terminal to stop the server.
 | `npm run build` | Compile TypeScript into dist |
 | `npm start` | Run the compiled server after building |
 
+## Customer API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/customers` | List customers |
+| `POST` | `/customers` | Add a customer with a name and valid email |
+
+Customer data is stored in memory for demonstration and is not persisted.
+
 ## Project structure
 
 - `src/app.ts`: Express app and health endpoint
 - `src/server.ts`: Server startup and environment configuration
-- `src/routes/`: Folder reserved for API routes
+- `src/routes/customers.ts`: In-memory customer list and create endpoint
 - `src/tests/`: Automated tests
-- `docs/architecture/`: Folder reserved for the ERD and design documents
-
-Git does not track empty folders. The routes and architecture folders
-will appear in the repository when files are added to them.
+- `docs/architecture/ERD.drawio` and `docs/architecture/ERD.svg`: Final ERD diagrams
