@@ -15,6 +15,7 @@ Database connections and business features are still in development.
 - TypeScript
 - Express
 - dotenv
+- tsx
 - Vitest and Supertest
 - ESLint
 
@@ -71,7 +72,7 @@ Press Control + C in the terminal to stop the server.
 - `src/server.ts`: Server startup and environment configuration
 - `src/routes/`: Folder reserved for API routes
 - `src/tests/`: Automated tests
-- `docs/architecture/`: Folder reserved for the ERD and design documents
+- `docs/architecture/ERD.drawio` and `docs/architecture/ERD.svg`: Final ERD diagrams
 
-Git does not track empty folders. The routes and architecture folders
-will appear in the repository when files are added to them.
+Git does not track empty folders, so the routes folder will appear in the
+repository when files are added to it.
