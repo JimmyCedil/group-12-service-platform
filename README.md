@@ -5,63 +5,131 @@ invoices, and payments.
 
 ## Current Progress
 
-The backend uses TypeScript, Express, Kysely, and a local SQLite database.
-Database migrations create tables for customers, services, jobs, technicians,
-job assignments, invoices, and payments. The running server persists customer
-records in SQLite. Jobs are currently held in memory and are lost when the
-server restarts.
+The backend uses TypeScript, Express, Kysely, and PostgreSQL.
+Migrations create nine application tables, including user accounts and
+job photo metadata. Customer records are stored in PostgreSQL.
+Jobs currently use temporary in-memory storage and are lost when the
+server restarts. Authentication and photo uploads are not implemented yet.
 
 ## Tools
 
 - Node.js 24
 - TypeScript
 - Express
-- Kysely and SQLite
+- Kysely and PostgreSQL
+- Docker Desktop for local PostgreSQL
 - dotenv
 - Vitest and Supertest
 - ESLint
 
 ## Setup
 
-1. Clone the repository and enter the project directory:
+## Setup
 
-   ```bash
-   git clone https://github.com/JimmyCedil/group-12-service-platform.git
-   cd group-12-service-platform
-   ```
+### Requirements
 
-2. Install dependencies:
+- Node.js 24 and npm
+- Git
+- Docker Desktop
 
-   ```bash
-   npm ci
-   ```
+### 1. Download the project
 
-3. Copy the example configuration:
+```bash
+git clone https://github.com/JimmyCedil/group-12-service-platform.git
+cd group-12-service-platform
+```
 
-   ```bash
-   cp .env.example .env
-   ```
+### 2. Install dependencies
 
-   `DATABASE_PATH` defaults to `./data/service-platform.db`. The app creates
-   the containing `data` directory and applies pending migrations at startup.
-   SQLite runs in-process; no database server is required.
+```bash
+npm ci
+```
 
-4. Optionally apply database migrations before starting the server. The server
-   also applies pending migrations automatically:
+### 3. Set up environment variables
 
-   ```bash
-   npm run db:migrate
-   ```
+Copy the example configuration:
 
-5. Start the development server:
+```bash
+cp .env.example .env
+```
 
-   ```bash
-   npm run dev
-   ```
+The local configuration should contain:
 
-6. Open <http://localhost:3000/health> to check that the server works.
+```dotenv
+PORT=3000
+DATABASE_URL=postgres://service_platform:local_dev_password@localhost:5433/service_platform
+```
 
-Press **Ctrl+C** in the terminal to stop the server.
+These credentials are for local development only. Do not commit `.env`.
+
+### 4. Start PostgreSQL
+
+Open Docker Desktop and wait for its engine to start. Then run:
+
+```bash
+docker compose up -d
+```
+
+Check the database status:
+
+```bash
+docker compose ps
+```
+
+Wait until the database shows `healthy`. PostgreSQL uses port 5433
+on your computer.
+
+### 5. Create the database tables
+
+```bash
+npm run db:migrate
+```
+
+On the first run, a successful migration reports:
+
+```text
+001_initial_schema: Success
+```
+
+### 6. Start the development server
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000/health in your browser. You should see:
+
+```json
+{
+  "status": "ok",
+  "message": "Service platform API is running"
+}
+```
+
+Press Control + C in the terminal to stop the app.
+
+### 7. Run the checks
+
+Keep PostgreSQL running, then run:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+The database tests create and remove temporary schemas without
+clearing the app's tables.
+
+### Stop the local database
+
+```bash
+docker compose stop
+```
+
+Start it again with `docker compose up -d`. Database data is preserved
+in a Docker volume.
 
 ## Health Check
 
