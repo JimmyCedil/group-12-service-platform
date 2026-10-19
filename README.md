@@ -4,6 +4,19 @@ A service business management app for organizing customers, jobs, technicians, i
 
 ## Current Progress
 
+The backend uses TypeScript, Express, Kysely, and a local SQLite database.
+The schema covers customers, services, jobs, technicians, job assignments,
+invoices, and payments. Customer create/list endpoints are available.
+
+## Tools
+
+- Node.js 24
+- TypeScript
+- Express
+- Kysely and SQLite
+- dotenv
+- Vitest and Supertest
+- ESLint
 The backend foundation is set up with TypeScript and Express. The health endpoint, in-memory Jobs API, and in-memory Customers API are implemented and tested. Database connections and other business features are still in development.
 
 ## Setup
@@ -32,11 +45,26 @@ The backend foundation is set up with TypeScript and Express. The health endpoin
    cp .env.example .env
    ```
 
-5. Start the development server:
+   `DATABASE_PATH` defaults to `./data/service-platform.db`. The app creates
+   the containing `data` directory and applies pending migrations at startup.
+   SQLite runs in-process; no database server is required.
+
+5. Apply database migrations (optional because the server also applies them
+   automatically):
+
+   ```bash
+   npm run db:migrate
+   ```
+
+6. Start the development server:
 
    ```bash
    npm run dev
    ```
+
+7. Open http://localhost:3000/health to check that the server works.
+   Use `POST /customers` to create a customer and `GET /customers` to list
+   saved customers.
 
 6. Open <http://localhost:3000/health> to check that the server works.
 
@@ -179,12 +207,12 @@ curl http://localhost:3000/customers
 
 Each independently running instance maintains its own in-memory customer list. Customer records are not currently persisted to a database.
 
-
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Run the server with automatic restarts |
+| `npm run db:migrate` | Apply pending database migrations |
 | `npm run typecheck` | Check TypeScript types |
 | `npm run lint` | Check coding issues |
 | `npm test` | Run automated tests |
@@ -209,4 +237,13 @@ Each independently running instance maintains its own in-memory customer list. C
 - `src/tests/`: Automated tests for API routes
 - `docs/architecture/`: ERD and design documents
 
+- `src/app.ts`: Express app, health endpoint, and customer API
+- `src/db/`: SQLite connection, database types, and Kysely migrations
+- `src/server.ts`: Database migration and server startup
+- `src/routes/`: Folder reserved for API routes
+- `src/tests/`: Automated tests
+- `docs/architecture/`: ERD and design documents
+
+Git does not track empty folders. The routes folder will appear in the
+repository when files are added to it.
 Git does not track empty folders, so folders appear in the repository once files are added to them.
