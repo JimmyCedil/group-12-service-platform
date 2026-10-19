@@ -29,30 +29,31 @@ export function createPersistentCustomersRouter(
     const body: unknown = req.body;
 
     if (!isRecord(body)) {
-      return res.status(400).json({ error: "Request body must be a JSON object" });
+      return res.status(400).json({
+        error: "Request body must be a JSON object",
+      });
     }
 
     if (
       !isNonEmptyString(body.first_name) ||
       !isNonEmptyString(body.last_name) ||
       !isNonEmptyString(body.email) ||
-      typeof body.phone !== "number" ||
-      !Number.isSafeInteger(body.phone) ||
+      !isNonEmptyString(body.phone) ||
       !isNonEmptyString(body.street) ||
       !isNonEmptyString(body.city) ||
       !isNonEmptyString(body.state) ||
-      typeof body.zip_code !== "number" ||
-      !Number.isSafeInteger(body.zip_code) ||
-      body.zip_code < 0
+      !isNonEmptyString(body.zip_code)
     ) {
       return res.status(400).json({
         error:
-          "first_name, last_name, email, street, city, and state must be non-empty strings; phone must be an integer and zip_code must be a non-negative integer",
+          "first_name, last_name, email, phone, street, city, state, and zip_code must be non-empty strings",
       });
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())) {
-      return res.status(400).json({ error: "email must be a valid email address" });
+      return res.status(400).json({
+        error: "email must be a valid email address",
+      });
     }
 
     const customer = await db
@@ -61,11 +62,11 @@ export function createPersistentCustomersRouter(
         first_name: body.first_name.trim(),
         last_name: body.last_name.trim(),
         email: body.email.trim(),
-        phone: body.phone,
+        phone: body.phone.trim(),
         street: body.street.trim(),
         city: body.city.trim(),
         state: body.state.trim(),
-        zip_code: body.zip_code,
+        zip_code: body.zip_code.trim(),
       })
       .returningAll()
       .executeTakeFirstOrThrow();

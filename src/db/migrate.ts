@@ -12,11 +12,16 @@ const migrationProvider: MigrationProvider = {
   }),
 };
 
-export async function migrateDatabase(db: Kysely<Database>): Promise<void> {
+export async function migrateDatabase(
+  db: Kysely<Database>,
+  migrationTableSchema?: string,
+): Promise<void> {
   const migrator = new Migrator({
     db,
     provider: migrationProvider,
+    ...(migrationTableSchema ? { migrationTableSchema } : {}),
   });
+
   const { error, results } = await migrator.migrateToLatest();
 
   if (error) {
