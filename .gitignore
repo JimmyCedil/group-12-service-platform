@@ -4,9 +4,6 @@ dist/
 .env.*
 !.env.example
 coverage/
-<<<<<<< HEAD
-=======
 data/
->>>>>>> 9529ef4 (Connect database and apply migrations)
 .DS_Store
 *.log
