@@ -6,8 +6,72 @@ technicians, invoices, and payments.
 ## Current progress
 
 The backend foundation is set up with TypeScript and Express.
-A health endpoint and an automated test are included.
-Database connections and business features are still in development.
+The health endpoint and in-memory Jobs API are implemented and tested.
+Database connections and other business features are still in development.
+
+## Jobs API
+
+The Jobs API allows clients to create jobs and retrieve the current list
+of jobs. Jobs are stored in memory and are not saved between server restarts.
+
+### Endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/jobs` | Create a new job |
+| `GET` | `/jobs` | Retrieve all jobs |
+
+### Create a job
+
+Send a JSON request to `POST /jobs` with the following required fields:
+
+- `customer_ID`: Positive integer identifying the customer
+- `service_ID`: Positive integer identifying the service
+- `title`: Non-empty string describing the job
+- `description`: Non-empty string with details about the job
+
+Optional fields include `service_Street`, `service_City`, `service_State`,
+and `service_Zip_Code`.
+
+Example request:
+
+```json
+{
+  "customer_ID": 1,
+  "service_ID": 2,
+  "title": "Kitchen sink repair",
+  "description": "Repair a leaking pipe",
+  "service_Street": "123 Main Street",
+  "service_City": "Charlotte",
+  "service_State": "NC",
+  "service_Zip_Code": 28202
+}
+```
+
+A successful request returns `201 Created` with the new job, including
+a generated `job_ID`, a `REQUESTED` status, and a `requested_At` timestamp.
+Scheduling and completion timestamps are initially `null`.
+
+Invalid request data returns `400 Bad Request` with an error message.
+
+### List jobs
+
+Send a `GET` request to `/jobs` to retrieve all jobs currently stored
+in memory. The endpoint returns `200 OK` with a JSON array.
+
+Example:
+
+```bash
+curl http://localhost:3000/jobs
+```
+
+### Testing
+
+Run the automated tests with:
+
+```bash
+npm test
+```
 
 ## Tools
 
@@ -69,7 +133,7 @@ Press Control + C in the terminal to stop the server.
 
 - `src/app.ts`: Express app and health endpoint
 - `src/server.ts`: Server startup and environment configuration
-- `src/routes/`: Folder reserved for API routes
+- `src/routes/jobs.ts`: Jobs API endpoints and input validation
 - `src/tests/`: Automated tests
 - `docs/architecture/`: Folder reserved for the ERD and design documents
 
