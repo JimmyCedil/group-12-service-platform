@@ -141,11 +141,11 @@ curl -X POST http://localhost:3000/customers \
     "first_Name": "Jane",
     "last_Name": "Smith",
     "email": "jane@example.com",
-    "phone": "336-555-0123",
+    "phone": "704-555-0123",
     "street": "123 Main Street",
-    "city": "Winston-Salem",
+    "city": "Charlotte",
     "state": "NC",
-    "zip_Code": 27101
+    "zip_Code": 28202
   }'
 ```
 
@@ -157,11 +157,11 @@ A successful request returns `201 Created`. Example response:
   "first_Name": "Jane",
   "last_Name": "Smith",
   "email": "jane@example.com",
-  "phone": "336-555-0123",
+  "phone": "704-555-0123",
   "street": "123 Main Street",
-  "city": "Winston-Salem",
+  "city": "Charlotte",
   "state": "NC",
-  "zip_Code": 27101
+  "zip_Code": 28202
 }
 ```
 
@@ -179,21 +179,6 @@ curl http://localhost:3000/customers
 
 Each independently running instance maintains its own in-memory customer list. Customer records are not currently persisted to a database.
 
-## Testing
-
-Run the automated test suite with:
-
-```bash
-npm test
-```
-
-Other useful checks:
-
-```bash
-npm run typecheck
-npm run lint
-npm run build
-```
 
 ## Commands
 
