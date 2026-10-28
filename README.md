@@ -5,11 +5,19 @@ invoices, and payments.
 
 ## Current Progress
 
-The backend uses TypeScript, Express, Kysely, and PostgreSQL.
-Migrations create nine application tables, including user accounts and
-job photo metadata. Customer records are stored in PostgreSQL.
-Jobs currently use temporary in-memory storage and are lost when the
-server restarts. Authentication and photo uploads are not implemented yet.
+The backend uses TypeScript, Express, Kysely, and PostgreSQL. The app includes
+an owner/employee login screen and a small role-aware workspace, served from
+`public/` at the same origin as the API. No separate frontend build is needed.
+
+- Sign in, restore your session on refresh, and sign out.
+- Owners can access customer records, all jobs, and assignment management APIs.
+- Employees can view and update progress only on their assigned jobs.
+- Employee accounts use the existing database role `technician`; the UI calls
+  this role “Employee.” Inactive technicians cannot sign in or use an old session.
+- Jobs are now stored in PostgreSQL so permissions use real assignment records.
+- Scheduling forms are the next task (#6). Customer management UI remains
+  separate from this login issue; the workspace includes a read-only directory.
+- Photo uploads, registration, password reset, and invoice UI are not implemented.
 
 ## Tools
 
@@ -21,8 +29,6 @@ server restarts. Authentication and photo uploads are not implemented yet.
 - dotenv
 - Vitest and Supertest
 - ESLint
-
-## Setup
 
 ## Setup
 
@@ -89,6 +95,7 @@ On the first run, a successful migration reports:
 
 ```text
 001_initial_schema: Success
+002_sessions: Success
 ```
 
 ### 6. Start the development server
@@ -139,121 +146,124 @@ in a Docker volume.
 
 Returns a JSON message indicating that the API is running.
 
-## Jobs API
+## Login and permissions (issue #4)
 
-The Jobs API allows clients to create jobs and retrieve the current list of
-jobs. Jobs are stored in memory and are not saved between server restarts.
-
-### Endpoints
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `POST` | `/jobs` | Create a new job |
-| `GET` | `/jobs` | Retrieve all jobs |
-
-### Create a Job
-
-Send a JSON request to `POST /jobs` with these required fields:
-
-- `customer_ID`: Positive integer identifying the customer
-- `service_ID`: Positive integer identifying the service
-- `title`: Non-empty string describing the job
-- `description`: Non-empty string with details about the job
-
-Optional fields include `service_Street`, `service_City`, `service_State`, and
-`service_Zip_Code`.
-
-Example request:
-
-```json
-{
-  "customer_ID": 1,
-  "service_ID": 2,
-  "title": "Kitchen sink repair",
-  "description": "Repair a leaking pipe",
-  "service_Street": "123 Main Street",
-  "service_City": "Charlotte",
-  "service_State": "NC",
-  "service_Zip_Code": 28202
-}
-```
-
-A successful request returns `201 Created` with the new job, including a
-generated `job_ID`, a `REQUESTED` status, and a `requested_At` timestamp.
-Scheduling and completion timestamps are initially `null`. Invalid request
-data returns `400 Bad Request` with an error message.
-
-Send a `GET` request to `/jobs` to retrieve all jobs currently stored in memory.
-The endpoint returns `200 OK` with a JSON array, or an empty array if no jobs
-have been created during the current run.
-
-## Customers API
-
-The Customers API stores customer records in the configured SQLite database,
-so they remain available after the server restarts.
-
-### Endpoints
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `POST` | `/customers` | Create a customer |
-| `GET` | `/customers` | Retrieve all customers |
-
-### Create a Customer
-
-Send a JSON request to `POST /customers`. All fields below are required by the
-current database schema:
-
-- `first_name`, `last_name`: Non-empty strings
-- `email`: Valid email address
-- `phone`: Integer
-- `street`, `city`, `state`: Non-empty strings
-- `zip_code`: Non-negative integer
-
-The `customer_id` is generated automatically.
-
-Example request:
+After starting PostgreSQL, apply migrations and create development accounts:
 
 ```bash
-curl -X POST http://localhost:3000/customers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "first_name": "Jane",
-    "last_name": "Smith",
-    "email": "jane@example.com",
-    "phone": 7045550123,
-    "street": "123 Main Street",
-    "city": "Charlotte",
-    "state": "NC",
-    "zip_code": 28202
-  }'
+npm run db:migrate
 ```
 
-A successful request returns `201 Created` with the stored customer, including
-its generated `customer_id`. Invalid request data returns `400 Bad Request`
-with an error message.
+Add `DEV_ACCOUNT_PASSWORD` (at least 12 characters) to your local `.env`, then run:
 
-Send a `GET` request to `/customers` to retrieve all stored customers. The
-endpoint returns `200 OK` with a JSON array, or an empty array if no customers
-have been created.
+```bash
+npm run db:seed:accounts
+npm run dev
+```
+
+Open http://localhost:3000 and sign in as `owner@crewlink.test` or
+`employee@crewlink.test`, using your chosen `DEV_ACCOUNT_PASSWORD`.
+The seed runs in a transaction, never resets existing accounts, and refuses
+production mode. There are no hardcoded default passwords. An employee must
+have a linked, active technician record. No public sign-up endpoint is exposed.
+
+The workspace uses HTML/CSS/JavaScript because this repository has no frontend
+framework yet. It follows the navy/teal CrewLink reference, supports mobile
+layouts, and can be replaced by a React frontend using the same API contract.
+
+### API contract
+
+All write requests require `Content-Type: application/json` (including logout).
+Use the same origin as the frontend; cross-site writes are rejected. Browser
+requests automatically include the HTTP-only session cookie; do not store
+passwords or session tokens in localStorage. For a separate frontend during
+future development, proxy API requests through its dev server rather than
+opening cross-origin credential access.
+
+| Method | Endpoint                | Access and purpose                                                                                    |
+| ------ | ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/login`           | `{ "email": "...", "password": "..." }`; returns `{ user: { user_id, email, role } }`                 |
+| GET    | `/auth/me`              | Current user, same response shape; 401 if signed out/expired                                          |
+| POST   | `/auth/logout`          | Send `{}`; revokes the session and clears the cookie; 204                                             |
+| GET    | `/customers`            | Owner only; customer directory                                                                        |
+| POST   | `/customers`            | Owner only; creates a customer                                                                        |
+| GET    | `/jobs`                 | Owners: all jobs. Employees: assigned jobs only                                                       |
+| GET    | `/jobs/:id`             | Same access rules; inaccessible jobs return 404                                                       |
+| POST   | `/jobs`                 | Owner only; creates a persistent requested job                                                        |
+| PATCH  | `/jobs/:id`             | `{ "status": "in_progress" }` or `{ "status": "completed" }`; employees may change assigned jobs only |
+| GET    | `/technicians`          | Owner only; technician IDs for assignments                                                            |
+| GET    | `/jobs/:id/assignments` | Owner only; current assignments                                                                       |
+| PUT    | `/jobs/:id/assignments` | Owner only; `{ "technician_ids": [1, 2] }` replaces the whole assignment set; `[]` clears it          |
+
+Owners can also set `requested` or `scheduled` via the status endpoint. Only
+`status` is accepted by PATCH, so callers cannot alter ownership, assignments,
+or account roles through that endpoint. Scheduling dates/forms belong to #6.
+
+Customer creation requires non-empty string fields: `first_name`, `last_name`,
+`email`, `phone`, `street`, `city`, `state`, `zip_code`; email must be valid.
+Job creation requires positive integer `customer_id`, `service_id`, plus
+non-empty `title` and `description`. The customer and active service must exist.
+Optional address fields are strings: `service_street`, `service_city`,
+`service_state`, `service_zip_code`. Omitted addresses are saved as empty strings.
+Legacy mixed-case request names such as `customer_ID` remain accepted, but
+responses now use the database's **snake_case** field names and lowercase job
+statuses. Phone numbers and ZIP codes are strings to preserve formatting.
+
+### Security and deployment
+
+Sessions expire after eight hours and survive server restarts. Only a SHA-256
+hash of each random session token is stored in PostgreSQL. Passwords use salted
+scrypt hashes. Logout revokes the server-side session, and login rotates it.
+Incorrect credentials use a generic error. Login attempts are limited to ten
+per IP in fifteen minutes, per application process; multi-instance deployments
+need a shared rate limiter. Behind a proxy, configure trusted proxy handling
+before relying on per-client IP throttling.
+
+Production requires HTTPS, `NODE_ENV=production` (Secure cookies), and
+`APP_ORIGIN` set to the public origin, for example `https://crewlink.example`.
+Expired sessions are cleaned up on successful login. Password reset/account
+provisioning beyond the development seed is separate work.
+
+### Verification
+
+With a local PostgreSQL `DATABASE_URL` set, run:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Tests create isolated schemas and remove them afterward. They cover login,
+logout/revocation, expired/forged sessions, role changes, inactive employees,
+owner-only customers and assignments, job-ID guessing, disallowed update fields,
+CSRF protections, rate limiting, and persistent jobs/customers.
+
+Manual demo: sign in as owner, sign out, then sign in as employee. The employee
+sees only My Jobs and no Customers navigation. Seeded employees initially have
+no assigned jobs; assign a database job through the owner-only assignment API
+before demonstrating status updates. No sample dashboard counts are fabricated.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Run the server with automatic restarts |
-| `npm run db:migrate` | Apply pending database migrations |
-| `npm run typecheck` | Check TypeScript types |
-| `npm run lint` | Check coding issues |
-| `npm test` | Run automated tests |
-| `npm run build` | Compile TypeScript into `dist` |
-| `npm start` | Run the compiled server after building |
+| Command              | Purpose                                |
+| -------------------- | -------------------------------------- |
+| `npm run dev`        | Run the server with automatic restarts |
+| `npm run db:migrate` | Apply pending database migrations      |
+| `npm run typecheck`  | Check TypeScript types                 |
+| `npm run lint`       | Check coding issues                    |
+| `npm test`           | Run automated tests                    |
+| `npm run build`      | Compile TypeScript into `dist`         |
+| `npm start`          | Run the compiled server after building |
 
 ## Project Structure
 
 - `src/app.ts`: Express app factory, health endpoint, and route registration
 - `src/server.ts`: Database migration and server startup
+- `public/`: Login and role-aware workspace frontend
+- `src/auth/`: Password hashing, sessions, and permission middleware
 - `src/routes/`: Jobs and customer API routes
-- `src/db/`: SQLite connection, database types, and Kysely migrations
+- `src/db/`: PostgreSQL connection, database types, and Kysely migrations
 - `src/tests/`: Automated API and database tests
 - `docs/architecture/`: ERD and design documents

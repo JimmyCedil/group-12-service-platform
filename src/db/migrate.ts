@@ -6,9 +6,12 @@ import { createDatabase } from "./index.js";
 import * as initialSchema from "./migrations/001_initial_schema.js";
 import type { Database } from "./types.js";
 
+import * as sessions from "./migrations/002_sessions.js";
+
 const migrationProvider: MigrationProvider = {
   getMigrations: async () => ({
     "001_initial_schema": initialSchema,
+    "002_sessions": sessions,
   }),
 };
 

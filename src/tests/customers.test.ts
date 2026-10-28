@@ -1,96 +1,36 @@
-
 import request from "supertest";
-import { describe, expect, it } from "vitest";
-import { app } from "../app.js";
-
-describe("POST /customers", () => {
-  it("creates a customer and returns 201", async () => {
-    const response = await request(app).post("/customers").send({
-      first_Name: "Jane",
-      last_Name: "Smith",
-      email: "jane.smith@example.com",
-      phone: "336-555-0123",
-      street: "123 Main Street",
-      city: "Winston-Salem",
-      state: "NC",
-      zip_Code: 27101,
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.body).toMatchObject({
-      customer_ID: expect.any(Number),
-      first_Name: "Jane",
-      last_Name: "Smith",
-      email: "jane.smith@example.com",
-      phone: "336-555-0123",
-      street: "123 Main Street",
-      city: "Winston-Salem",
-      state: "NC",
-      zip_Code: 27101,
-    });
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fixture, customerData } from "./fixture.js";
+describe("owner customer access", () => {
+  let f: Awaited<ReturnType<typeof fixture>>;
+  beforeEach(async () => {
+    f = await fixture();
   });
-
-  it("rejects missing required fields", async () => {
-    const response = await request(app).post("/customers").send({
-      first_Name: "Jane",
-      email: "jane@example.com",
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBeDefined();
+  afterEach(async () => {
+    await f?.cleanup();
   });
-
-  it("rejects an invalid email address", async () => {
-    const response = await request(app).post("/customers").send({
-      first_Name: "Jane",
-      last_Name: "Smith",
-      email: "not-an-email",
-      phone: "336-555-0123",
-    });
-
-    expect(response.status).toBe(400);
+  it("lets owners add and view persistent customers", async () => {
+    const created = await f.owner
+      .post("/customers")
+      .send(customerData)
+      .expect(201);
+    expect(created.body).toMatchObject(customerData);
+    expect((await f.owner.get("/customers").expect(200)).body).toEqual([
+      created.body,
+    ]);
   });
-
-  it("rejects an empty first name", async () => {
-    const response = await request(app).post("/customers").send({
-      first_Name: " ",
-      last_Name: "Smith",
-      email: "jane@example.com",
-      phone: "336-555-0123",
-    });
-
-    expect(response.status).toBe(400);
+  it("blocks unauthenticated and employee access", async () => {
+    await request(f.app).get("/customers").expect(401);
+    await f.employee.get("/customers").expect(403);
+    await f.employee.post("/customers").send(customerData).expect(403);
+    await f.employee.get("/technicians").expect(403);
   });
-
-  it("allows omitted address fields", async () => {
-    const response = await request(app).post("/customers").send({
-      first_Name: "John",
-      last_Name: "Doe",
-      email: "john.doe@example.com",
-      phone: "3365550123",
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.body.street).toBeNull();
-    expect(response.body.city).toBeNull();
-    expect(response.body.state).toBeNull();
-    expect(response.body.zip_Code).toBeNull();
-  });
-});
-
-describe("GET /customers", () => {
-  it("returns a list containing a created customer", async () => {
-    const created = await request(app).post("/customers").send({
-      first_Name: "Test",
-      last_Name: "Customer",
-      email: "test.customer@example.com",
-      phone: "336-555-0199",
-    });
-
-    const response = await request(app).get("/customers");
-
-    expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
-    expect(response.body).toContainEqual(created.body);
+  it("rejects incomplete data and invalid email without saving", async () => {
+    await f.owner.post("/customers").send({ first_name: "Taylor" }).expect(400);
+    await f.owner
+      .post("/customers")
+      .send({ ...customerData, email: "invalid" })
+      .expect(400);
+    await f.owner.get("/customers").expect(200, []);
   });
 });

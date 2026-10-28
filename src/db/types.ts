@@ -22,6 +22,7 @@ type NullableTimestamp = ColumnType<
 type Money = ColumnType<string, string, string>;
 
 export interface Database {
+  session: SessionTable;
   user: UserTable;
   customer: CustomerTable;
   technician: TechnicianTable;
@@ -120,4 +121,10 @@ export interface JobPhotoTable {
   original_filename: string;
   content_type: string;
   uploaded_at: DefaultTimestamp;
+}
+
+export interface SessionTable {
+  token_hash: string;
+  user_id: number;
+  expires_at: Timestamp;
 }
