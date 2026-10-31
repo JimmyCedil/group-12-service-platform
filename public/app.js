@@ -5,6 +5,19 @@
   let currentPage = "jobs";
   let viewGeneration = 0;
   let customers = [];
+  let services = [];
+
+  function renderServiceOptions(selectedId) {
+    const select = $("job-service");
+    select.replaceChildren(new Option("Choose an option", ""));
+    services.forEach(row => {
+      const opt = new Option(row.name, row.service_id);
+      if (selectedId && row.service_id === selectedId) opt.selected = true;
+      select.add(opt);
+    });
+    $("save-job").disabled = !customers.length || !services.length;
+    $("job-error").textContent = !customers.length || !services.length ? "An existing customer and an active service are needed before scheduling a job." : "";
+  }
   async function api(path, options = {}) {
     const response = await fetch(path, {
       ...options,
@@ -23,6 +36,8 @@
     currentUser = undefined;
     $("job-editor").hidden = true;
     $("job-details").hidden = true;
+    $("customer-editor").hidden = true;
+    $("service-editor").hidden = true;
     $("job-form").reset();
     $("workspace-view").hidden = true;
     $("login-view").hidden = false;
@@ -53,7 +68,10 @@
     currentPage = page;
     $("job-editor").hidden = true;
     $("job-details").hidden = true;
+    $("customer-editor").hidden = true;
+    $("service-editor").hidden = true;
     $("new-job").hidden = page !== "jobs" || currentUser?.role !== "owner";
+    $("new-customer").hidden = page !== "customers" || currentUser?.role !== "owner";
     const generation = ++viewGeneration;
     const isOwner = currentUser?.role === "owner";
     $("page-title").textContent =
@@ -69,7 +87,14 @@
     $("records").replaceChildren();
     $("workspace-message").textContent = "Loading…";
     try {
-      const records = await api("/" + page);
+      let records;
+      if (page === "jobs" && isOwner) {
+        const [jobRows, customerRows] = await Promise.all([api("/jobs"), api("/customers")]);
+        records = jobRows;
+        customers = customerRows;
+      } else {
+        records = await api("/" + page);
+      }
       if (generation !== viewGeneration || currentPage !== page || !currentUser)
         return;
       $("workspace-message").textContent = "";
@@ -99,7 +124,7 @@
       const labels =
         page === "jobs"
           ? ["Job", "Location", "Schedule", "Status", "Progress"]
-          : ["Customer", "Email", "Phone", "City"];
+          : ["Customer", "Email", "Phone", "City", ""];
       labels.forEach((label) => {
         const th = node("th", label);
         th.scope = "col";
@@ -117,6 +142,13 @@
             record.phone,
             record.city,
           ].forEach((text) => row.append(node("td", text)));
+          const actionsTd = node("td");
+          const viewBtn = node("button", "View", "secondary");
+          viewBtn.type = "button";
+          viewBtn.setAttribute("aria-label", "View " + record.first_name + " " + record.last_name);
+          viewBtn.addEventListener("click", () => showCustomer(record));
+          actionsTd.append(viewBtn);
+          row.append(actionsTd);
         } else {
           const title = node("td");
           const detailsButton = node("button", record.title, "text-button");
@@ -194,17 +226,145 @@
   }
   function showJob(job, saved = false) {
     const details = $("job-details");
-    details.replaceChildren(node("h2", saved ? "Job scheduled successfully" : job.title));
-    const entries = [
-      ["Job", job.title], ["Description", job.description],
-      ["Customer", customers.find(c => c.customer_id === job.customer_id) ? (() => { const c = customers.find(c => c.customer_id === job.customer_id); return c.first_name + " " + c.last_name; })() : "Customer #" + job.customer_id],
-      ["Scheduled for", job.scheduled_at ? new Date(job.scheduled_at).toLocaleString() : "Not scheduled"],
-      ["Location", [job.service_street, job.service_city, job.service_state, job.service_zip_code].join(", ")],
-      ["Instructions", job.instructions || "None"], ["Status", job.status.replaceAll("_", " ")],
-    ];
+    const isOwner = currentUser?.role === "owner";
+
+    // Heading
+    const heading = node("h2", saved ? "Job scheduled" : job.title);
+
+    // Status + scheduled date row
+    const meta = document.createElement("div");
+    meta.className = "job-meta";
+    meta.append(
+      node("span", job.status.replaceAll("_", " "), "status " + job.status),
+      node("span", job.scheduled_at ? new Date(job.scheduled_at).toLocaleString() : "Not scheduled", "muted")
+    );
+
+    // Detail list
+    const customerRec = customers.find(c => c.customer_id === job.customer_id);
+    const customerName = customerRec
+      ? customerRec.first_name + " " + customerRec.last_name
+      : "Customer #" + job.customer_id;
+
+    const addressParts = [job.service_street, job.service_city, job.service_state, job.service_zip_code].filter(Boolean);
+    const address = addressParts.join(", ");
+
     const list = node("dl");
-    entries.forEach(([label, value]) => list.append(node("dt", label), node("dd", value)));
-    details.append(list);
+    [
+      ["Job", job.title],
+      ["Description", job.description],
+      ["Customer", customerName],
+      ["Instructions", job.instructions || "None"],
+    ].forEach(([label, value]) => list.append(node("dt", label), node("dd", value)));
+
+    // Location row with map link
+    const locDt = node("dt", "Location");
+    const locDd = document.createElement("dd");
+    locDd.textContent = address || "Not specified";
+    if (address) {
+      const mapLink = document.createElement("a");
+      mapLink.href = "https://maps.google.com/?q=" + encodeURIComponent(address);
+      mapLink.target = "_blank";
+      mapLink.rel = "noopener noreferrer";
+      mapLink.textContent = "View map →";
+      mapLink.className = "map-link";
+      locDd.append(" ", mapLink);
+    }
+    list.append(locDt, locDd);
+
+    // Status action buttons
+    const actionRow = document.createElement("div");
+    actionRow.className = "job-actions detail-actions";
+    ["in_progress", "completed"]
+      .filter(v => v !== job.status)
+      .forEach(value => {
+        const btn = node("button", value === "in_progress" ? "Start job" : "Mark complete", "secondary");
+        btn.type = "button";
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await api("/jobs/" + job.job_id, { method: "PATCH", body: JSON.stringify({ status: value }) });
+            await loadPage("jobs");
+          } catch (err) {
+            $("workspace-message").textContent = err.message;
+            btn.disabled = false;
+          }
+        });
+        actionRow.append(btn);
+      });
+
+    details.replaceChildren(heading, meta, list, actionRow);
+
+    // Assignment section — owner only
+    if (isOwner) {
+      const assignSection = document.createElement("section");
+      assignSection.className = "assign-section";
+      assignSection.append(node("h3", "Assign Employees"));
+      const assignStatus = node("p", "Loading employees…", "muted");
+      assignSection.append(assignStatus);
+      details.append(assignSection);
+
+      Promise.all([api("/technicians"), api("/jobs/" + job.job_id + "/assignments")])
+        .then(([techs, assignments]) => {
+          const assignedIds = new Set(assignments.map(a => a.technician_id));
+          assignStatus.remove();
+          if (!techs.length) {
+            assignSection.append(node("p", "No active employees found.", "muted"));
+            return;
+          }
+          const form = document.createElement("form");
+          form.className = "assign-form";
+          techs.forEach(tech => {
+            const label = document.createElement("label");
+            label.className = "assign-check";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = String(tech.technician_id);
+            checkbox.checked = assignedIds.has(tech.technician_id);
+            label.append(checkbox, document.createTextNode(tech.first_name + " " + tech.last_name));
+            form.append(label);
+          });
+          const saveBtn = node("button", "Save assignments", "secondary assign-save");
+          saveBtn.type = "button";
+          const assignError = node("p", "", "error");
+          assignError.hidden = true;
+          form.append(saveBtn, assignError);
+          assignSection.append(form);
+
+          saveBtn.addEventListener("click", async () => {
+            saveBtn.disabled = true;
+            assignError.hidden = true;
+            const checked = [...form.querySelectorAll("input[type=checkbox]:checked")].map(cb => Number(cb.value));
+            try {
+              await api("/jobs/" + job.job_id + "/assignments", {
+                method: "PUT",
+                body: JSON.stringify({ technician_ids: checked }),
+              });
+              saveBtn.textContent = "Saved ✓";
+              setTimeout(() => { if (!saveBtn.disabled) return; saveBtn.textContent = "Save assignments"; saveBtn.disabled = false; }, 2000);
+            } catch (err) {
+              assignError.textContent = err.message;
+              assignError.hidden = false;
+              saveBtn.disabled = false;
+            }
+          });
+        })
+        .catch(err => { assignStatus.textContent = "Could not load employees: " + err.message; });
+    }
+
+    details.hidden = false;
+    details.focus();
+  }
+  function showCustomer(customer) {
+    const details = $("job-details");
+    const heading = node("h2", customer.first_name + " " + customer.last_name);
+    const list = node("dl");
+    [
+      ["Email", customer.email],
+      ["Phone", customer.phone],
+      ["Address", [customer.street, customer.city, customer.state, customer.zip_code].filter(Boolean).join(", ")],
+    ].forEach(([label, value]) => list.append(node("dt", label), node("dd", value)));
+    $("customer-editor").hidden = true;
+    details.replaceChildren(heading, list);
     details.hidden = false;
     details.focus();
   }
@@ -213,22 +373,18 @@
     $("new-job").disabled = true;
     $("workspace-message").textContent = "Loading scheduling options…";
     try {
-      const [customerRows, services] = await Promise.all([api("/customers"), api("/services")]);
+      const [customerRows, serviceRows] = await Promise.all([api("/customers"), api("/services")]);
       if (generation !== viewGeneration || currentUser?.role !== "owner") return;
       customers = customerRows;
+      services = serviceRows;
       $("job-form").reset();
-      for (const [id, rows, key, label] of [
-        ["job-customer", customers, "customer_id", c => c.first_name + " " + c.last_name],
-        ["job-service", services, "service_id", s => s.name],
-      ]) {
-        const select = $(id);
-        select.replaceChildren(new Option("Choose an option", ""));
-        rows.forEach(row => select.add(new Option(label(row), row[key])));
-      }
-      $("save-job").disabled = !customers.length || !services.length;
-      $("job-error").textContent = !customers.length || !services.length ? "An existing customer and an active service are needed before scheduling a job." : "";
+      const custSelect = $("job-customer");
+      custSelect.replaceChildren(new Option("Choose an option", ""));
+      customers.forEach(row => custSelect.add(new Option(row.first_name + " " + row.last_name, row.customer_id)));
+      renderServiceOptions();
       $("schedule-zone").textContent = "Date and time use your time zone: " + Intl.DateTimeFormat().resolvedOptions().timeZone;
       $("job-details").hidden = true;
+      $("service-editor").hidden = true;
       $("job-editor").hidden = false;
       $("workspace-message").textContent = "";
       $("job-customer").focus();
@@ -281,6 +437,76 @@
     } finally {
       $("save-job").disabled = false;
       $("cancel-job").disabled = false;
+    }
+  });
+  $("new-service-btn").addEventListener("click", () => {
+    $("service-form").reset();
+    $("service-error").hidden = true;
+    $("service-error").textContent = "";
+    $("service-editor").hidden = false;
+    $("service-name").focus();
+  });
+  $("cancel-service").addEventListener("click", () => {
+    $("service-editor").hidden = true;
+    $("job-service").focus();
+  });
+  $("service-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData($("service-form")));
+    for (const key of Object.keys(data)) data[key] = data[key].trim();
+    data.base_price = Number(data.base_price).toFixed(2);
+    $("save-service").disabled = true;
+    $("service-error").hidden = true;
+    $("service-error").textContent = "";
+    try {
+      const created = await api("/services", { method: "POST", body: JSON.stringify(data) });
+      services.push(created);
+      services.sort((a, b) => a.name.localeCompare(b.name));
+      renderServiceOptions(created.service_id);
+      $("service-editor").hidden = true;
+      $("service-form").reset();
+      $("job-service").value = String(created.service_id);
+      $("job-title").focus();
+    } catch (err) {
+      $("service-error").textContent = err.message;
+      $("service-error").hidden = false;
+    } finally {
+      $("save-service").disabled = false;
+    }
+  });
+  $("new-customer").addEventListener("click", () => {
+    $("customer-form").reset();
+    $("customer-error").hidden = true;
+    $("customer-error").textContent = "";
+    $("job-details").hidden = true;
+    $("customer-editor").hidden = false;
+    $("cust-first-name").focus();
+  });
+  $("cancel-customer").addEventListener("click", () => {
+    $("customer-editor").hidden = true;
+    $("new-customer").focus();
+  });
+  $("customer-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const generation = viewGeneration;
+    const data = Object.fromEntries(new FormData($("customer-form")));
+    for (const key of Object.keys(data)) data[key] = data[key].trim();
+    $("save-customer").disabled = true;
+    $("customer-error").hidden = true;
+    $("customer-error").textContent = "";
+    try {
+      await api("/customers", { method: "POST", body: JSON.stringify(data) });
+      if (generation !== viewGeneration || !currentUser) return;
+      $("customer-editor").hidden = true;
+      $("customer-form").reset();
+      await loadPage("customers");
+    } catch (err) {
+      if (generation === viewGeneration) {
+        $("customer-error").textContent = err.message;
+        $("customer-error").hidden = false;
+      }
+    } finally {
+      $("save-customer").disabled = false;
     }
   });
   $("toggle-password").addEventListener("click", () => {

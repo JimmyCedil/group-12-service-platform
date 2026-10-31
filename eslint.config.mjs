@@ -7,7 +7,7 @@ export default tseslint.config(
   },
   {
     files: ["public/**/*.js"],
-    languageOptions: { globals: { document: "readonly", fetch: "readonly", Option: "readonly", FormData: "readonly" } },
+    languageOptions: { globals: { document: "readonly", fetch: "readonly", Option: "readonly", FormData: "readonly", setTimeout: "readonly", encodeURIComponent: "readonly", Set: "readonly", Promise: "readonly" } },
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -114,13 +114,20 @@
             <span class="live-badge">● Connected</span>
           </div>
           <button id="new-job" class="primary" type="button" hidden>Create job</button>
+          <button id="new-customer" class="primary" type="button" hidden>Add customer</button>
           <section id="job-editor" class="job-panel" aria-labelledby="job-form-title" hidden>
             <h2 id="job-form-title">Schedule a job</h2>
             <p id="schedule-zone" class="muted"></p>
             <form id="job-form">
               <div class="job-form-grid">
                 <div><label for="job-customer">Customer</label><select id="job-customer" name="customer_id" required></select></div>
-                <div><label for="job-service">Service</label><select id="job-service" name="service_id" required></select></div>
+                <div>
+                  <div class="field-header">
+                    <label for="job-service">Service</label>
+                    <button id="new-service-btn" class="text-button" type="button">+ New service</button>
+                  </div>
+                  <select id="job-service" name="service_id" required></select>
+                </div>
 <div><label for="job-title">Job title</label><input id="job-title" name="title" type="text" required /></div>
 <div><label for="job-description">Service description</label><textarea id="job-description" name="description" required></textarea></div>
 <div><label for="job-date">Date</label><input id="job-date" name="date" type="date" required /></div>
@@ -133,6 +140,35 @@
 </div>
               <p id="job-error" class="error" role="alert"></p>
               <div class="job-actions"><button id="save-job" class="primary" type="submit">Save scheduled job</button><button id="cancel-job" class="secondary" type="button">Cancel</button></div>
+            </form>
+          </section>
+          <section id="customer-editor" class="job-panel" aria-labelledby="customer-form-title" hidden>
+            <h2 id="customer-form-title">Add a customer</h2>
+            <form id="customer-form">
+              <div class="job-form-grid">
+                <div><label for="cust-first-name">First name</label><input id="cust-first-name" name="first_name" type="text" required maxlength="200" /></div>
+                <div><label for="cust-last-name">Last name</label><input id="cust-last-name" name="last_name" type="text" required maxlength="200" /></div>
+                <div><label for="cust-email">Email address</label><input id="cust-email" name="email" type="email" required maxlength="254" /></div>
+                <div><label for="cust-phone">Phone</label><input id="cust-phone" name="phone" type="tel" required maxlength="30" /></div>
+                <div><label for="cust-street">Street address</label><input id="cust-street" name="street" type="text" required maxlength="200" /></div>
+                <div><label for="cust-city">City</label><input id="cust-city" name="city" type="text" required maxlength="100" /></div>
+                <div><label for="cust-state">State</label><input id="cust-state" name="state" type="text" required maxlength="50" /></div>
+                <div><label for="cust-zip">ZIP code</label><input id="cust-zip" name="zip_code" type="text" required maxlength="10" /></div>
+              </div>
+              <p id="customer-error" class="error" role="alert" hidden></p>
+              <div class="job-actions"><button id="save-customer" class="primary" type="submit">Save customer</button><button id="cancel-customer" class="secondary" type="button">Cancel</button></div>
+            </form>
+          </section>
+          <section id="service-editor" class="job-panel" aria-labelledby="service-form-title" hidden>
+            <h2 id="service-form-title">Add a service</h2>
+            <form id="service-form">
+              <div class="job-form-grid">
+                <div><label for="service-name">Service name</label><input id="service-name" name="name" type="text" placeholder="e.g. System Tune-up" required maxlength="200" /></div>
+                <div><label for="service-base-price">Base price ($)</label><input id="service-base-price" name="base_price" type="number" step="0.01" min="0" placeholder="e.g. 99.00" required /></div>
+                <div class="full-width"><label for="service-desc">Description</label><textarea id="service-desc" name="description" placeholder="Brief description of the service" required maxlength="1000"></textarea></div>
+              </div>
+              <p id="service-error" class="error" role="alert" hidden></p>
+              <div class="job-actions"><button id="save-service" class="primary" type="submit">Save service</button><button id="cancel-service" class="secondary" type="button">Cancel</button></div>
             </form>
           </section>
           <section id="job-details" class="job-panel" aria-label="Job details" tabindex="-1" hidden></section>
