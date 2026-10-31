@@ -32,7 +32,7 @@ export function createApp(db: Kysely<Database>): Express {
   app.use(sameOrigin);
   app.use("/auth", createAuthRouter(db));
   const signedIn = authentication(db);
-  app.use(["/customers", "/jobs", "/technicians"], (_req, res, next) => {
+  app.use(["/customers", "/jobs", "/technicians", "/services"], (_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
   });
@@ -43,6 +43,9 @@ export function createApp(db: Kysely<Database>): Express {
     createPersistentCustomersRouter(db),
   );
   app.use("/jobs", signedIn, createAuthorizedJobsRouter(db));
+  app.get("/services", signedIn, ownerOnly, async (_req, res) =>
+    res.json(await db.selectFrom("service").select(["service_id", "name", "description"]).where("is_active", "=", true).orderBy("name").execute()),
+  );
   app.get("/technicians", signedIn, ownerOnly, async (_req, res) =>
     res.json(await db.selectFrom("technician").selectAll().execute()),
   );

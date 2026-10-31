@@ -494,3 +494,16 @@ td strong {
     padding-top: 30px;
   }
 }
+
+
+/* Scheduling workspace */
+#new-job { width: auto; margin-bottom: 20px; }
+.job-panel { background: white; border: 1px solid #dce3e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+.job-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.job-form-grid input, .job-form-grid select, .job-form-grid textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5df; border-radius: 8px; padding: 12px; font: inherit; background: white; }
+.job-form-grid textarea { min-height: 90px; resize: vertical; }
+.job-form-grid label { display: block; margin-bottom: 8px; }
+.job-panel .primary { width: auto; }
+.job-panel dt { font-weight: 700; margin-top: 14px; }
+.job-panel dd { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .job-form-grid { grid-template-columns: 1fr; } .job-panel { padding: 16px; } }

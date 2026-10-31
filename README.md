@@ -267,3 +267,17 @@ before demonstrating status updates. No sample dashboard counts are fabricated.
 - `src/db/`: PostgreSQL connection, database types, and Kysely migrations
 - `src/tests/`: Automated API and database tests
 - `docs/architecture/`: ERD and design documents
+
+
+
+## Owner job scheduling (issue #6)
+
+Run `npm run db:migrate` before starting the updated app. Migration 003 adds optional job instructions without changing existing records.
+
+Sign in as an owner, open Jobs, and choose **Create job**. Select an existing customer and active service, enter the title, description, date, time and complete address, then save. The customer address is filled automatically and can be changed for this job. Instructions are optional. The form shows the browser time zone; dates are sent with an explicit UTC offset and stored as timestamps. Saved jobs start as `scheduled` and their details appear immediately. Click a job title to reopen its details.
+
+Customers and active services must already exist in the database. Service administration and employee assignment UI are outside issue #6. Scheduling alone does not assign employees; their existing assignment permissions still apply.
+
+`POST /jobs` requires customer_id, service_id, title, description, scheduled_at (ISO timestamp with Z or an offset), service_street, service_city, service_state and service_zip_code. It accepts optional instructions. `GET /services` lists active service choices for owners.
+
+This feature branch depends on PR #36. Merge that PR first, then retarget this feature PR to main.
