@@ -45,8 +45,7 @@ export function createAuthorizedJobsRouter(db: Kysely<Database>): Router {
     if (!job) return res.status(404).json({ error: "Job not found" });
     return res.json(job);
   });
-  // Preserve the existing create-job endpoint while moving its storage to PostgreSQL.
-  // Scheduling fields and UI belong to issue #6.
+  // Owners schedule jobs; the server controls their initial status.
   router.post("/", ownerOnly, async (req, res) => {
     const body = req.body;
     if (!body || typeof body !== "object" || Array.isArray(body))
@@ -79,6 +78,19 @@ export function createAuthorizedJobsRouter(db: Kysely<Database>): Router {
     };
     if (Object.values(address).some((value) => typeof value !== "string"))
       return res.status(400).json({ error: "Address fields must be strings" });
+    if (Object.values(address).some(value => !value.trim()))
+      return res.status(400).json({ error: "A complete service address is required" });
+    // Require an explicit offset so browser and server time zones cannot shift a job.
+    const schedule = body.scheduled_at;
+    const match = typeof schedule === "string" && /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d{1,3})?)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(schedule);
+    const scheduledAt = new Date(typeof schedule === "string" ? schedule : "invalid");
+    if (!match || !Number.isFinite(scheduledAt.getTime()))
+      return res.status(400).json({ error: "A valid date and time with a time zone are required" });
+    const calendar = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (calendar.getUTCFullYear() !== Number(match[1]) || calendar.getUTCMonth() !== Number(match[2]) - 1 || calendar.getUTCDate() !== Number(match[3]))
+      return res.status(400).json({ error: "Choose a valid calendar date" });
+    if (body.instructions !== undefined && typeof body.instructions !== "string")
+      return res.status(400).json({ error: "Instructions must be text" });
     const foundCustomer = await db
       .selectFrom("customer")
       .select("customer_id")
@@ -101,7 +113,13 @@ export function createAuthorizedJobsRouter(db: Kysely<Database>): Router {
         service_id: service,
         title: body.title.trim(),
         description: body.description.trim(),
-        ...address,
+        service_street: address.service_street.trim(),
+        service_city: address.service_city.trim(),
+        service_state: address.service_state.trim(),
+        service_zip_code: address.service_zip_code.trim(),
+        scheduled_at: scheduledAt,
+        status: "scheduled",
+        instructions: (body.instructions ?? "").trim(),
       })
       .returningAll()
       .executeTakeFirstOrThrow();

@@ -8,10 +8,13 @@ import type { Database } from "./types.js";
 
 import * as sessions from "./migrations/002_sessions.js";
 
+import * as jobInstructions from "./migrations/003_job_instructions.js";
+
 const migrationProvider: MigrationProvider = {
   getMigrations: async () => ({
     "001_initial_schema": initialSchema,
     "002_sessions": sessions,
+    "003_job_instructions": jobInstructions,
   }),
 };
 

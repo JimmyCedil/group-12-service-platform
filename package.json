@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run src/tests",
+    "test": "vitest run src/tests --no-file-parallelism",
     "lint": "eslint .",
     "db:seed:accounts": "tsx src/db/seedAccounts.ts"
   },

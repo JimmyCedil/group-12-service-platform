@@ -80,6 +80,7 @@ export interface JobTable {
   status: Generated<
     "requested" | "scheduled" | "in_progress" | "completed"
   >;
+  instructions: Generated<string>;
   requested_at: DefaultTimestamp;
   scheduled_at: NullableTimestamp;
   completed_at: NullableTimestamp;

@@ -4,6 +4,7 @@
   let currentUser;
   let currentPage = "jobs";
   let viewGeneration = 0;
+  let customers = [];
   async function api(path, options = {}) {
     const response = await fetch(path, {
       ...options,
@@ -20,6 +21,9 @@
   function showLogin() {
     viewGeneration++;
     currentUser = undefined;
+    $("job-editor").hidden = true;
+    $("job-details").hidden = true;
+    $("job-form").reset();
     $("workspace-view").hidden = true;
     $("login-view").hidden = false;
     $("records").replaceChildren();
@@ -47,6 +51,9 @@
   }
   async function loadPage(page) {
     currentPage = page;
+    $("job-editor").hidden = true;
+    $("job-details").hidden = true;
+    $("new-job").hidden = page !== "jobs" || currentUser?.role !== "owner";
     const generation = ++viewGeneration;
     const isOwner = currentUser?.role === "owner";
     $("page-title").textContent =
@@ -112,8 +119,11 @@
           ].forEach((text) => row.append(node("td", text)));
         } else {
           const title = node("td");
+          const detailsButton = node("button", record.title, "text-button");
+          detailsButton.type = "button";
+          detailsButton.addEventListener("click", () => showJob(record));
           title.append(
-            node("strong", record.title),
+            detailsButton,
             node("span", record.description, "small"),
           );
           row.append(
@@ -182,6 +192,97 @@
       $("workspace-message").textContent = error.message;
     }
   }
+  function showJob(job, saved = false) {
+    const details = $("job-details");
+    details.replaceChildren(node("h2", saved ? "Job scheduled successfully" : job.title));
+    const entries = [
+      ["Job", job.title], ["Description", job.description],
+      ["Customer", customers.find(c => c.customer_id === job.customer_id) ? (() => { const c = customers.find(c => c.customer_id === job.customer_id); return c.first_name + " " + c.last_name; })() : "Customer #" + job.customer_id],
+      ["Scheduled for", job.scheduled_at ? new Date(job.scheduled_at).toLocaleString() : "Not scheduled"],
+      ["Location", [job.service_street, job.service_city, job.service_state, job.service_zip_code].join(", ")],
+      ["Instructions", job.instructions || "None"], ["Status", job.status.replaceAll("_", " ")],
+    ];
+    const list = node("dl");
+    entries.forEach(([label, value]) => list.append(node("dt", label), node("dd", value)));
+    details.append(list);
+    details.hidden = false;
+    details.focus();
+  }
+  $("new-job").addEventListener("click", async () => {
+    const generation = viewGeneration;
+    $("new-job").disabled = true;
+    $("workspace-message").textContent = "Loading scheduling options…";
+    try {
+      const [customerRows, services] = await Promise.all([api("/customers"), api("/services")]);
+      if (generation !== viewGeneration || currentUser?.role !== "owner") return;
+      customers = customerRows;
+      $("job-form").reset();
+      for (const [id, rows, key, label] of [
+        ["job-customer", customers, "customer_id", c => c.first_name + " " + c.last_name],
+        ["job-service", services, "service_id", s => s.name],
+      ]) {
+        const select = $(id);
+        select.replaceChildren(new Option("Choose an option", ""));
+        rows.forEach(row => select.add(new Option(label(row), row[key])));
+      }
+      $("save-job").disabled = !customers.length || !services.length;
+      $("job-error").textContent = !customers.length || !services.length ? "An existing customer and an active service are needed before scheduling a job." : "";
+      $("schedule-zone").textContent = "Date and time use your time zone: " + Intl.DateTimeFormat().resolvedOptions().timeZone;
+      $("job-details").hidden = true;
+      $("job-editor").hidden = false;
+      $("workspace-message").textContent = "";
+      $("job-customer").focus();
+    } catch (error) {
+      if (generation === viewGeneration) $("workspace-message").textContent = error.message;
+    } finally { $("new-job").disabled = false; }
+  });
+  $("job-customer").addEventListener("change", () => {
+    const customer = customers.find(c => c.customer_id === Number($("job-customer").value));
+    if (!customer) return;
+    for (const [field, source] of [["street", "street"], ["city", "city"], ["state", "state"], ["zip_code", "zip_code"]])
+      $("job-service_" + field).value = customer[source];
+  });
+  $("cancel-job").addEventListener("click", () => {
+    $("job-editor").hidden = true;
+    $("new-job").focus();
+  });
+  $("job-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const generation = viewGeneration;
+    const form = $("job-form");
+    const data = Object.fromEntries(new FormData(form));
+    for (const key of Object.keys(data)) data[key] = data[key].trim();
+    if (Object.entries(data).some(([key, value]) => key !== "instructions" && !value)) {
+      $("job-error").textContent = "Fill out all required fields.";
+      return;
+    }
+    const scheduled = new Date(data.date + "T" + data.time);
+    // Reject local times skipped by a daylight-saving clock change.
+    const [hours, minutes] = data.time.split(":").map(Number);
+    if (!Number.isFinite(scheduled.getTime()) || scheduled.getHours() !== hours || scheduled.getMinutes() !== minutes) {
+      $("job-error").textContent = "Choose a valid local date and time.";
+      return;
+    }
+    data.customer_id = Number(data.customer_id);
+    data.service_id = Number(data.service_id);
+    data.scheduled_at = scheduled.toISOString();
+    delete data.date; delete data.time;
+    $("save-job").disabled = true;
+    $("cancel-job").disabled = true;
+    $("job-error").textContent = "";
+    try {
+      const job = await api("/jobs", { method: "POST", body: JSON.stringify(data) });
+      if (generation !== viewGeneration || !currentUser) return;
+      await loadPage("jobs");
+      if (currentUser && currentPage === "jobs") showJob(job, true);
+      form.reset();
+    } catch (error) {
+      if (generation === viewGeneration) $("job-error").textContent = error.message;
+    } finally {
+      $("save-job").disabled = false;
+      $("cancel-job").disabled = false;
+    }
+  });
   $("toggle-password").addEventListener("click", () => {
     const visible = $("password").type === "password";
     $("password").type = visible ? "text" : "password";

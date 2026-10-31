@@ -95,6 +95,8 @@ export async function jobFixture(f: Awaited<ReturnType<typeof fixture>>) {
   const data = {
     customer_id: customer.customer_id,
     service_id: service.service_id,
+    scheduled_at: "2026-11-02T14:30:00-05:00",
+    instructions: "Use the side entrance",
     title: "Kitchen cleaning",
     description: "Deep clean",
     service_street: customer.street,

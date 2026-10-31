@@ -17,6 +17,11 @@ describe("authorized jobs", () => {
   });
   it("lets owners create persistent jobs, but blocks employees", async () => {
     const created = await f.owner.post("/jobs").send(jobs.data).expect(201);
+    expect(created.body.status).toBe("scheduled");
+    expect(created.body.instructions).toBe("Use the side entrance");
+    expect(created.body.scheduled_at).toBe("2026-11-02T19:30:00.000Z");
+    const detail = await f.owner.get(`/jobs/${created.body.job_id}`).expect(200);
+    expect(detail.body).toEqual(created.body);
     expect(
       await f.db
         .selectFrom("job")
@@ -108,4 +113,31 @@ describe("authorized jobs", () => {
       .send({ ...jobs.data, title: " " })
       .expect(400);
   });
+  it("rejects missing fields, invalid dates and invalid instructions without saving", async () => {
+    for (const field of ["customer_id", "service_id", "title", "description", "scheduled_at", "service_street", "service_city", "service_state", "service_zip_code"]) {
+      const data: Record<string, unknown> = { ...jobs.data };
+      delete data[field];
+      await f.owner.post("/jobs").send(data).expect(400);
+    }
+    for (const scheduled_at of ["invalid", "2026-02-30T10:00:00Z", "2026-11-02T25:00:00Z", "2026-11-02T10:00:00"]) {
+      await f.owner.post("/jobs").send({ ...jobs.data, scheduled_at }).expect(400);
+    }
+    await f.owner.post("/jobs").send({ ...jobs.data, instructions: 42 }).expect(400);
+    expect((await f.owner.get("/jobs")).body).toHaveLength(2);
+  });
+  it("lists active services only for owners and rejects inactive service creation", async () => {
+    await f.db.updateTable("service").set({ is_active: false }).where("service_id", "=", jobs.data.service_id).execute();
+    expect((await f.owner.get("/services").expect(200)).body).toEqual([]);
+    await f.employee.get("/services").expect(403);
+    await request(f.app).get("/services").expect(401);
+    await f.owner.post("/jobs").send(jobs.data).expect(400);
+  });
+  it("allows optional instructions and controls the initial status", async () => {
+    const { instructions: _instructions, ...data } = jobs.data;
+    void _instructions;
+    const result = await f.owner.post("/jobs").send({ ...data, status: "completed" }).expect(201);
+    expect(result.body.instructions).toBe("");
+    expect(result.body.status).toBe("scheduled");
+  });
+
 });

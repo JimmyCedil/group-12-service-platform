@@ -113,6 +113,29 @@
             </div>
             <span class="live-badge">● Connected</span>
           </div>
+          <button id="new-job" class="primary" type="button" hidden>Create job</button>
+          <section id="job-editor" class="job-panel" aria-labelledby="job-form-title" hidden>
+            <h2 id="job-form-title">Schedule a job</h2>
+            <p id="schedule-zone" class="muted"></p>
+            <form id="job-form">
+              <div class="job-form-grid">
+                <div><label for="job-customer">Customer</label><select id="job-customer" name="customer_id" required></select></div>
+                <div><label for="job-service">Service</label><select id="job-service" name="service_id" required></select></div>
+<div><label for="job-title">Job title</label><input id="job-title" name="title" type="text" required /></div>
+<div><label for="job-description">Service description</label><textarea id="job-description" name="description" required></textarea></div>
+<div><label for="job-date">Date</label><input id="job-date" name="date" type="date" required /></div>
+<div><label for="job-time">Time</label><input id="job-time" name="time" type="time" required /></div>
+<div><label for="job-service_street">Street address</label><input id="job-service_street" name="service_street" type="text" required /></div>
+<div><label for="job-service_city">City</label><input id="job-service_city" name="service_city" type="text" required /></div>
+<div><label for="job-service_state">State</label><input id="job-service_state" name="service_state" type="text" required /></div>
+<div><label for="job-service_zip_code">ZIP code</label><input id="job-service_zip_code" name="service_zip_code" type="text" required /></div>
+<div><label for="job-instructions">Instructions (optional)</label><textarea id="job-instructions" name="instructions" ></textarea></div>
+</div>
+              <p id="job-error" class="error" role="alert"></p>
+              <div class="job-actions"><button id="save-job" class="primary" type="submit">Save scheduled job</button><button id="cancel-job" class="secondary" type="button">Cancel</button></div>
+            </form>
+          </section>
+          <section id="job-details" class="job-panel" aria-label="Job details" tabindex="-1" hidden></section>
           <p id="workspace-message" role="status" class="muted"></p>
           <div id="records" class="records"></div>
         </main>
