@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src/tests",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:seed:accounts": "tsx src/db/seedAccounts.ts"
   },
   "repository": {
     "type": "git",

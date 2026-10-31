@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { sql, type Kysely } from "kysely";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hashPassword } from "../auth/passwords.js";
 import { createApp } from "../app.js";
 import { createDatabase } from "../db/index.js";
 import { migrateDatabase } from "../db/migrate.js";
@@ -12,6 +13,7 @@ describe("service platform app", () => {
   let db: Kysely<Database> | undefined;
   let schema: string;
   let app: ReturnType<typeof createApp>;
+  let owner: ReturnType<typeof request.agent>;
 
   beforeEach(async () => {
     const connectionString = process.env.DATABASE_URL;
@@ -28,9 +30,22 @@ describe("service platform app", () => {
     const testUrl = new URL(connectionString);
     testUrl.searchParams.set("options", `-c search_path=${schema}`);
 
-    db = createDatabase(testUrl.toString());
+    db = createDatabase(testUrl.toString()).withSchema(schema);
     await migrateDatabase(db, schema);
     app = createApp(db);
+    await db
+      .insertInto("user")
+      .values({
+        email: "owner@test.example",
+        role: "owner",
+        password_hash: await hashPassword("test-password"),
+      })
+      .execute();
+    owner = request.agent(app);
+    await owner
+      .post("/auth/login")
+      .send({ email: "owner@test.example", password: "test-password" })
+      .expect(200);
   });
 
   afterEach(async () => {
@@ -39,8 +54,9 @@ describe("service platform app", () => {
     } finally {
       if (admin) {
         try {
-          await sql`drop schema if exists ${sql.id(schema)} cascade`
-            .execute(admin);
+          await sql`drop schema if exists ${sql.id(schema)} cascade`.execute(
+            admin,
+          );
         } finally {
           await admin.destroy();
         }
@@ -73,29 +89,27 @@ describe("service platform app", () => {
       zip_code: "02108",
     };
 
-    const created = await request(app)
-      .post("/customers")
-      .send(customer);
+    const created = await owner.post("/customers").send(customer);
 
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject(customer);
     expect(created.body.customer_id).toEqual(expect.any(Number));
 
-    const listed = await request(app).get("/customers");
+    const listed = await owner.get("/customers");
 
     expect(listed.status).toBe(200);
     expect(listed.body).toEqual([created.body]);
   });
 
   it("rejects incomplete customer data without saving it", async () => {
-    const response = await request(app)
+    const response = await owner
       .post("/customers")
       .send({ first_name: "Taylor" });
 
     expect(response.status).toBe(400);
     expect(response.body).toHaveProperty("error");
 
-    await request(app).get("/customers").expect(200, []);
+    await owner.get("/customers").expect(200, []);
   });
 
   it("creates all nine app tables", async () => {
