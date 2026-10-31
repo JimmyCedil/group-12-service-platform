@@ -112,6 +112,47 @@ describe("service platform app", () => {
     await owner.get("/customers").expect(200, []);
   });
 
+  it("creates a service and lists it back for owners", async () => {
+    const service = {
+      name: "HVAC Inspection",
+      description: "Full system inspection and filter replacement",
+      base_price: "125.00",
+    };
+
+    const created = await owner.post("/services").send(service);
+
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({
+      name: service.name,
+      description: service.description,
+      base_price: "125.00",
+      is_active: true,
+    });
+    expect(created.body.service_id).toEqual(expect.any(Number));
+
+    const listed = await owner.get("/services");
+    expect(listed.status).toBe(200);
+    expect(listed.body).toContainEqual({
+      service_id: created.body.service_id,
+      name: service.name,
+      description: service.description,
+    });
+  });
+
+  it("rejects invalid service requests", async () => {
+    const res1 = await owner
+      .post("/services")
+      .send({ name: "HVAC Inspection" });
+    expect(res1.status).toBe(400);
+
+    const res2 = await owner.post("/services").send({
+      name: "HVAC Inspection",
+      description: "Full inspection",
+      base_price: "-10",
+    });
+    expect(res2.status).toBe(400);
+  });
+
   it("creates all nine app tables", async () => {
     const tables = await sql<{ table_name: string }>`
       select table_name

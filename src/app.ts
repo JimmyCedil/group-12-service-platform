@@ -46,6 +46,55 @@ export function createApp(db: Kysely<Database>): Express {
   app.get("/services", signedIn, ownerOnly, async (_req, res) =>
     res.json(await db.selectFrom("service").select(["service_id", "name", "description"]).where("is_active", "=", true).orderBy("name").execute()),
   );
+  app.post("/services", signedIn, ownerOnly, async (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return res
+        .status(400)
+        .json({ error: "Request body must be a JSON object" });
+    }
+    const { name, description, base_price } = body as Record<string, unknown>;
+    if (
+      typeof name !== "string" ||
+      !name.trim() ||
+      typeof description !== "string" ||
+      !description.trim()
+    ) {
+      return res.status(400).json({
+        error: "name and description must be non-empty strings",
+      });
+    }
+    const priceStr =
+      typeof base_price === "number"
+        ? base_price.toFixed(2)
+        : typeof base_price === "string"
+          ? base_price.trim()
+          : "";
+    const parsedPrice = Number(priceStr);
+    if (
+      !priceStr ||
+      Number.isNaN(parsedPrice) ||
+      parsedPrice < 0 ||
+      !/^\d+(\.\d{1,2})?$/.test(priceStr)
+    ) {
+      return res.status(400).json({
+        error: "base_price must be a valid non-negative amount (e.g. 75.00)",
+      });
+    }
+
+    const service = await db
+      .insertInto("service")
+      .values({
+        name: name.trim(),
+        description: description.trim(),
+        base_price: parsedPrice.toFixed(2),
+        is_active: true,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return res.status(201).json(service);
+  });
   app.get("/technicians", signedIn, ownerOnly, async (_req, res) =>
     res.json(await db.selectFrom("technician").selectAll().execute()),
   );
