@@ -19,6 +19,22 @@ describe("owner customer access", () => {
       created.body,
     ]);
   });
+  it("lets owners view an individual customer", async () => {
+  const created = await f.owner
+    .post("/customers")
+    .send(customerData)
+    .expect(201);
+  const response = await f.owner
+    .get(`/customers/${created.body.customer_id}`)
+    .expect(200);
+  expect(response.body).toEqual(created.body);
+  });
+  it("rejects invalid customer IDs", async () => {
+  await f.owner.get("/customers/abc").expect(400);
+  });
+  it("returns 404 for a nonexistent customer", async () => {
+  await f.owner.get("/customers/999999").expect(404);
+  });
   it("blocks unauthenticated and employee access", async () => {
     await request(f.app).get("/customers").expect(401);
     await f.employee.get("/customers").expect(403);

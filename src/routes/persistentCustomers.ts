@@ -15,6 +15,7 @@ export function createPersistentCustomersRouter(
 ): Router {
   const router = Router();
 
+  // GET /customers - Retrieve all customers
   router.get("/", async (_req, res) => {
     const customers = await db
       .selectFrom("customer")
@@ -25,6 +26,31 @@ export function createPersistentCustomersRouter(
     return res.status(200).json(customers);
   });
 
+  // GET: Retrieve one customer by ID
+  router.get("/:id", async (req, res) => {
+    const customerId = Number(req.params.id);
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({
+        error: "Customer ID must be a positive integer",
+      });
+    }
+
+    const customer = await db
+      .selectFrom("customer")
+      .selectAll()
+      .where("customer_id", "=", customerId)
+      .executeTakeFirst();
+
+    if (!customer) {
+      return res.status(404).json({
+        error: "Customer not found",
+      });
+    }
+
+    return res.status(200).json(customer);
+  });
+  // POST: Create a new customer
   router.post("/", async (req, res) => {
     const body: unknown = req.body;
 
