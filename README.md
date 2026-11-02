@@ -186,6 +186,7 @@ opening cross-origin credential access.
 | GET    | `/auth/me`              | Current user, same response shape; 401 if signed out/expired                                          |
 | POST   | `/auth/logout`          | Send `{}`; revokes the session and clears the cookie; 204                                             |
 | GET    | `/customers`            | Owner only; customer directory                                                                        |
+| GET    | `/customers/:id`        | Owner only; retrieves a specific customer by ID                                                       |
 | POST   | `/customers`            | Owner only; creates a customer                                                                        |
 | GET    | `/jobs`                 | Owners: all jobs. Employees: assigned jobs only                                                       |
 | GET    | `/jobs/:id`             | Same access rules; inaccessible jobs return 404                                                       |
