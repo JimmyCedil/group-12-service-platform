@@ -497,13 +497,30 @@ td strong {
 
 
 /* Scheduling workspace */
-#new-job { width: auto; margin-bottom: 20px; }
+#new-job, #new-customer { width: auto; margin-bottom: 20px; margin-right: 10px; }
 .job-panel { background: white; border: 1px solid #dce3e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
 .job-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .job-form-grid input, .job-form-grid select, .job-form-grid textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5df; border-radius: 8px; padding: 12px; font: inherit; background: white; }
 .job-form-grid textarea { min-height: 90px; resize: vertical; }
 .job-form-grid label { display: block; margin-bottom: 8px; }
+.field-header { display: flex; justify-content: space-between; align-items: baseline; }
+.field-header label { margin-bottom: 8px; }
+.full-width { grid-column: 1 / -1; }
 .job-panel .primary { width: auto; }
 .job-panel dt { font-weight: 700; margin-top: 14px; }
 .job-panel dd { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Job details */
+.job-meta { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; flex-wrap: wrap; }
+.job-meta .muted { font-size: 13px; }
+.detail-actions { margin-top: 20px; padding-top: 16px; border-top: 1px solid #edf1f5; }
+.map-link { display: inline-block; margin-left: 8px; color: var(--teal); font-size: 12px; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.map-link:hover { text-decoration: underline; }
+/* Assignment section */
+.assign-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #edf1f5; }
+.assign-section h3 { font-size: 16px; margin: 0 0 14px; }
+.assign-form { display: flex; flex-direction: column; gap: 0; }
+.assign-check { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: background 0.1s; }
+.assign-check:hover { background: #f0f5fa; }
+.assign-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--teal); cursor: pointer; flex-shrink: 0; }
+.assign-save { margin-top: 14px; }
 @media (max-width: 700px) { .job-form-grid { grid-template-columns: 1fr; } .job-panel { padding: 16px; } }
