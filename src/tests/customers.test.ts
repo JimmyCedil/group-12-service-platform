@@ -49,4 +49,23 @@ describe("owner customer access", () => {
       .expect(400);
     await f.owner.get("/customers").expect(200, []);
   });
+  it("rejects an empty first name", async () => {
+       await f.owner
+         .post("/customers")
+         .send({ ...customerData, first_name: " " })
+         .expect(400);
+     });
+
+       it("requires address fields", async () => {
+    const withoutAddress = {
+      first_name: customerData.first_name,
+      last_name: customerData.last_name,
+      email: customerData.email,
+      phone: customerData.phone,
+    };
+    await f.owner
+      .post("/customers")
+      .send(withoutAddress)
+      .expect(400);
+  });
 });
