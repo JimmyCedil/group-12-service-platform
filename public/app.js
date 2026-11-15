@@ -184,35 +184,31 @@
           row.append(status);
           const actions = node("td");
           const buttons = node("div", undefined, "job-actions");
-          ["in_progress", "completed"]
-            .filter((value) => value !== record.status)
-            .forEach((value) => {
-              const button = node(
-                "button",
-                value === "in_progress" ? "Start" : "Complete",
-                "secondary",
-              );
-              button.type = "button";
-              button.setAttribute(
-                "aria-label",
-                (value === "in_progress" ? "Start " : "Complete ") +
-                  record.title,
-              );
-              button.addEventListener("click", async () => {
-                button.disabled = true;
-                try {
-                  await api("/jobs/" + record.job_id, {
-                    method: "PATCH",
-                    body: JSON.stringify({ status: value }),
-                  });
-                  await loadPage("jobs");
-                } catch (error) {
-                  $("workspace-message").textContent = error.message;
-                  button.disabled = false;
-                }
-              });
-              buttons.append(button);
+          const nextActions =
+            record.status === "scheduled"
+              ? [{ value: "in_progress", label: "Start" }]
+              : record.status === "in_progress"
+                ? [{ value: "completed", label: "Complete" }]
+                : [];
+          nextActions.forEach(({ value, label }) => {
+            const button = node("button", label, "secondary");
+            button.type = "button";
+            button.setAttribute("aria-label", label + " " + record.title);
+            button.addEventListener("click", async () => {
+              button.disabled = true;
+              try {
+                await api("/jobs/" + record.job_id, {
+                  method: "PATCH",
+                  body: JSON.stringify({ status: value }),
+                });
+                await loadPage("jobs");
+              } catch (error) {
+                $("workspace-message").textContent = error.message;
+                button.disabled = false;
+              }
             });
+            buttons.append(button);
+          });
           actions.append(buttons);
           row.append(actions);
         }
@@ -250,6 +246,7 @@
 
     const list = node("dl");
     [
+      ["Status", job.status.replaceAll("_", " ")],
       ["Job", job.title],
       ["Description", job.description],
       ["Customer", customerName],
@@ -274,23 +271,31 @@
     // Status action buttons
     const actionRow = document.createElement("div");
     actionRow.className = "job-actions detail-actions";
-    ["in_progress", "completed"]
-      .filter(v => v !== job.status)
-      .forEach(value => {
-        const btn = node("button", value === "in_progress" ? "Start job" : "Mark complete", "secondary");
-        btn.type = "button";
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          try {
-            await api("/jobs/" + job.job_id, { method: "PATCH", body: JSON.stringify({ status: value }) });
-            await loadPage("jobs");
-          } catch (err) {
-            $("workspace-message").textContent = err.message;
-            btn.disabled = false;
-          }
-        });
-        actionRow.append(btn);
+    const nextActions =
+      job.status === "scheduled"
+        ? [{ value: "in_progress", label: "Start job" }]
+        : job.status === "in_progress"
+          ? [{ value: "completed", label: "Mark complete" }]
+          : [];
+    nextActions.forEach(({ value, label }) => {
+      const btn = node("button", label, "secondary");
+      btn.type = "button";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          const updatedJob = await api("/jobs/" + job.job_id, {
+            method: "PATCH",
+            body: JSON.stringify({ status: value }),
+          });
+          await loadPage("jobs");
+          showJob(updatedJob);
+        } catch (err) {
+          $("workspace-message").textContent = err.message;
+          btn.disabled = false;
+        }
       });
+      actionRow.append(btn);
+    });
 
     details.replaceChildren(heading, meta, list, actionRow);
 

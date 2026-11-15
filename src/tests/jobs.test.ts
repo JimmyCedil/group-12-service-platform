@@ -62,6 +62,57 @@ describe("authorized jobs", () => {
       .expect(200);
     expect(completed.body.completed_at).toBeTruthy();
   });
+  it("persists employee status updates from scheduled to in_progress to completed and reflects in owner view", async () => {
+    const initialDetail = await f.employee
+      .get(`/jobs/${jobs.assigned.job_id}`)
+      .expect(200);
+    expect(initialDetail.body.status).toBe("scheduled");
+
+    const inProgress = await f.employee
+      .patch(`/jobs/${jobs.assigned.job_id}`)
+      .send({ status: "in_progress" })
+      .expect(200);
+    expect(inProgress.body.status).toBe("in_progress");
+
+    const dbInProgress = await f.db
+      .selectFrom("job")
+      .select(["status", "completed_at"])
+      .where("job_id", "=", jobs.assigned.job_id)
+      .executeTakeFirstOrThrow();
+    expect(dbInProgress.status).toBe("in_progress");
+    expect(dbInProgress.completed_at).toBeNull();
+
+    const ownerList = await f.owner.get("/jobs").expect(200);
+    const ownerJob = ownerList.body.find(
+      (j: { job_id: number }) => j.job_id === jobs.assigned.job_id,
+    );
+    expect(ownerJob.status).toBe("in_progress");
+
+    const ownerDetail = await f.owner
+      .get(`/jobs/${jobs.assigned.job_id}`)
+      .expect(200);
+    expect(ownerDetail.body.status).toBe("in_progress");
+
+    const completed = await f.employee
+      .patch(`/jobs/${jobs.assigned.job_id}`)
+      .send({ status: "completed" })
+      .expect(200);
+    expect(completed.body.status).toBe("completed");
+    expect(completed.body.completed_at).toBeTruthy();
+
+    const dbCompleted = await f.db
+      .selectFrom("job")
+      .select(["status", "completed_at"])
+      .where("job_id", "=", jobs.assigned.job_id)
+      .executeTakeFirstOrThrow();
+    expect(dbCompleted.status).toBe("completed");
+    expect(dbCompleted.completed_at).toBeTruthy();
+
+    const ownerFinalDetail = await f.owner
+      .get(`/jobs/${jobs.assigned.job_id}`)
+      .expect(200);
+    expect(ownerFinalDetail.body.status).toBe("completed");
+  });
   it("rejects mass assignment and unauthorized scheduling", async () => {
     await f.employee
       .patch(`/jobs/${jobs.assigned.job_id}`)
