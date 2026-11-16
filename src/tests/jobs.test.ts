@@ -1,6 +1,6 @@
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fixture, jobFixture } from "./fixture.js";
+import { fixture, jobFixture, testPassword } from "./fixture.js";
 describe("authorized jobs", () => {
   let f: Awaited<ReturnType<typeof fixture>>;
   let jobs: Awaited<ReturnType<typeof jobFixture>>;
@@ -92,6 +92,42 @@ describe("authorized jobs", () => {
       .send({ technician_ids: [f.technician.technician_id] })
       .expect(204);
     await f.employee.get(`/jobs/${jobs.other.job_id}`).expect(200);
+  });
+  it("shows a reassigned job only to the new employee", async () => {
+    const replacement = request.agent(f.app);
+    await replacement
+      .post("/auth/login")
+      .send({ email: jobs.otherUser.email, password: testPassword })
+      .expect(200);
+
+    const created = await f.owner.post("/jobs").send(jobs.data).expect(201);
+    const jobId: number = created.body.job_id;
+    const assignmentPath = `/jobs/${jobId}/assignments`;
+    await f.owner
+      .put(assignmentPath)
+      .send({ technician_ids: [f.technician.technician_id] })
+      .expect(204);
+    expect((await f.employee.get("/jobs").expect(200)).body).toContainEqual(
+      expect.objectContaining({ job_id: jobId }),
+    );
+    await replacement.get(`/jobs/${jobId}`).expect(404);
+
+    await f.owner
+      .put(assignmentPath)
+      .send({ technician_ids: [jobs.otherTechnician.technician_id] })
+      .expect(204);
+    const saved = await f.owner.get(assignmentPath).expect(200);
+    expect(saved.body).toEqual([
+      expect.objectContaining({ technician_id: jobs.otherTechnician.technician_id }),
+    ]);
+    expect((await f.employee.get("/jobs").expect(200)).body).not.toContainEqual(
+      expect.objectContaining({ job_id: jobId }),
+    );
+    expect((await replacement.get("/jobs").expect(200)).body).toContainEqual(
+      expect.objectContaining({ job_id: jobId }),
+    );
+    await f.employee.get(`/jobs/${jobId}`).expect(404);
+    await replacement.get(`/jobs/${jobId}`).expect(200);
   });
   it("rejects invalid assignments without losing existing ones", async () => {
     await f.owner
