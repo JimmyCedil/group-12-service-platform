@@ -301,6 +301,8 @@
 
     // Assignment section — owner only
     if (isOwner) {
+      const assignedEmployees = node("dd", "Loading…");
+      list.append(node("dt", "Assigned employees"), assignedEmployees);
       const assignSection = document.createElement("section");
       assignSection.className = "assign-section";
       assignSection.append(node("h3", "Assign Employees"));
@@ -311,14 +313,29 @@
       Promise.all([api("/technicians"), api("/jobs/" + job.job_id + "/assignments")])
         .then(([techs, assignments]) => {
           const assignedIds = new Set(assignments.map(a => a.technician_id));
+          const updateAssignedEmployees = ids => {
+            const names = techs
+              .filter(tech => ids.has(tech.technician_id))
+              .map(tech => tech.first_name + " " + tech.last_name + (tech.is_active ? "" : " (inactive)"));
+            assignedEmployees.textContent = names.join(", ") || "Unassigned";
+          };
+          updateAssignedEmployees(assignedIds);
           assignStatus.remove();
-          if (!techs.length) {
+
+          const activeEmployees = techs.filter(tech => tech.is_active);
+          if (!activeEmployees.length) {
             assignSection.append(node("p", "No active employees found.", "muted"));
-            return;
           }
+          const hasInactiveAssignment = techs.some(
+            tech => !tech.is_active && assignedIds.has(tech.technician_id)
+          );
+          const inactiveNotice = node("p", "Saving removes inactive employees from this job.", "muted");
+          if (hasInactiveAssignment) assignSection.append(inactiveNotice);
+          if (!activeEmployees.length && !hasInactiveAssignment) return;
+
           const form = document.createElement("form");
           form.className = "assign-form";
-          techs.forEach(tech => {
+          const employeeOptions = activeEmployees.map(tech => {
             const label = document.createElement("label");
             label.className = "assign-check";
             const checkbox = document.createElement("input");
@@ -327,33 +344,48 @@
             checkbox.checked = assignedIds.has(tech.technician_id);
             label.append(checkbox, document.createTextNode(tech.first_name + " " + tech.last_name));
             form.append(label);
+            return checkbox;
           });
           const saveBtn = node("button", "Save assignments", "secondary assign-save");
-          saveBtn.type = "button";
+          saveBtn.type = "submit";
           const assignError = node("p", "", "error");
           assignError.hidden = true;
           form.append(saveBtn, assignError);
           assignSection.append(form);
 
-          saveBtn.addEventListener("click", async () => {
+          const feedback = node("p", "", "muted");
+          feedback.setAttribute("role", "status");
+          form.append(feedback);
+          form.addEventListener("change", () => { feedback.textContent = ""; });
+          form.addEventListener("submit", async event => {
+            event.preventDefault();
+            if (saveBtn.disabled) return;
+            const selectedIds = employeeOptions.filter(option => option.checked).map(option => Number(option.value));
             saveBtn.disabled = true;
+            employeeOptions.forEach(option => { option.disabled = true; });
             assignError.hidden = true;
-            const checked = [...form.querySelectorAll("input[type=checkbox]:checked")].map(cb => Number(cb.value));
+            feedback.textContent = "";
             try {
               await api("/jobs/" + job.job_id + "/assignments", {
                 method: "PUT",
-                body: JSON.stringify({ technician_ids: checked }),
+                body: JSON.stringify({ technician_ids: selectedIds }),
               });
-              saveBtn.textContent = "Saved ✓";
-              setTimeout(() => { if (!saveBtn.disabled) return; saveBtn.textContent = "Save assignments"; saveBtn.disabled = false; }, 2000);
+              updateAssignedEmployees(new Set(selectedIds));
+              inactiveNotice.remove();
+              feedback.textContent = "Assignments saved.";
             } catch (err) {
               assignError.textContent = err.message;
               assignError.hidden = false;
+            } finally {
               saveBtn.disabled = false;
+              employeeOptions.forEach(option => { option.disabled = false; });
             }
           });
         })
-        .catch(err => { assignStatus.textContent = "Could not load employees: " + err.message; });
+        .catch(err => {
+          assignedEmployees.textContent = "Unavailable";
+          assignStatus.textContent = "Could not load employees: " + err.message;
+        });
     }
 
     details.hidden = false;

@@ -147,5 +147,5 @@ export async function jobFixture(f: Awaited<ReturnType<typeof fixture>>) {
       technician_id: otherTechnician.technician_id,
     })
     .execute();
-  return { assigned, other, data };
+  return { assigned, other, data, otherUser, otherTechnician };
 }
