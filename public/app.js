@@ -95,6 +95,17 @@
       } else {
         records = await api("/" + page);
       }
+
+      // Sort jobs by scheduled date/time, with unscheduled jobs at the end. Customers are sorted by last name. -jacobp823
+      if (page === "jobs") {
+        records.sort((a, b) => {
+          if (!a.scheduled_at && !b.scheduled_at) return 0;
+          if (!a.scheduled_at) return 1;
+          if (!b.scheduled_at) return -1;
+          return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+        });
+      }
+
       if (generation !== viewGeneration || currentPage !== page || !currentUser)
         return;
       $("workspace-message").textContent = "";
