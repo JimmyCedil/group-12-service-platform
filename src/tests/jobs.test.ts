@@ -113,6 +113,71 @@ describe("authorized jobs", () => {
       .expect(200);
     expect(ownerFinalDetail.body.status).toBe("completed");
   });
+  it("lets owners reschedule jobs without changing other details and persists the new time for assigned employees", async () => {
+    const newSchedule = "2026-12-10T09:45:00-05:00";
+    const updated = await f.owner
+      .patch(`/jobs/${jobs.assigned.job_id}`)
+      .send({ scheduled_at: newSchedule })
+      .expect(200);
+    expect(updated.body).toMatchObject({
+      job_id: jobs.assigned.job_id,
+      customer_id: jobs.assigned.customer_id,
+      service_id: jobs.assigned.service_id,
+      title: jobs.assigned.title,
+      description: jobs.assigned.description,
+      status: jobs.assigned.status,
+      instructions: jobs.assigned.instructions,
+      service_street: jobs.assigned.service_street,
+      service_city: jobs.assigned.service_city,
+      service_state: jobs.assigned.service_state,
+      service_zip_code: jobs.assigned.service_zip_code,
+      scheduled_at: "2026-12-10T14:45:00.000Z",
+    });
+
+    const saved = await f.db
+      .selectFrom("job")
+      .select("scheduled_at")
+      .where("job_id", "=", jobs.assigned.job_id)
+      .executeTakeFirstOrThrow();
+    expect(saved.scheduled_at?.toISOString()).toBe("2026-12-10T14:45:00.000Z");
+    expect(
+      (await f.owner.get(`/jobs/${jobs.assigned.job_id}`).expect(200)).body
+        .scheduled_at,
+    ).toBe("2026-12-10T14:45:00.000Z");
+    expect(
+      (await f.employee.get(`/jobs/${jobs.assigned.job_id}`).expect(200)).body
+        .scheduled_at,
+    ).toBe("2026-12-10T14:45:00.000Z");
+    expect(
+      (await f.employee.get("/jobs").expect(200)).body,
+    ).toContainEqual(
+      expect.objectContaining({
+        job_id: jobs.assigned.job_id,
+        scheduled_at: "2026-12-10T14:45:00.000Z",
+      }),
+    );
+  });
+  it("rejects employee rescheduling and invalid schedule values without changing the saved time", async () => {
+    await f.employee
+      .patch(`/jobs/${jobs.assigned.job_id}`)
+      .send({ scheduled_at: "2026-12-10T14:45:00Z" })
+      .expect(403);
+    for (const scheduled_at of [
+      "invalid",
+      "2026-02-30T10:00:00Z",
+      "2026-11-02T25:00:00Z",
+      "2026-11-02T10:00:00",
+    ]) {
+      await f.owner
+        .patch(`/jobs/${jobs.assigned.job_id}`)
+        .send({ scheduled_at })
+        .expect(400);
+    }
+    const saved = await f.owner
+      .get(`/jobs/${jobs.assigned.job_id}`)
+      .expect(200);
+    expect(saved.body.scheduled_at).toBe("2026-11-02T19:30:00.000Z");
+  });
   it("rejects mass assignment and unauthorized scheduling", async () => {
     await f.employee
       .patch(`/jobs/${jobs.assigned.job_id}`)

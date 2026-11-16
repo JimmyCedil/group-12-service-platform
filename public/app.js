@@ -64,6 +64,23 @@
     if (className) element.className = className;
     return element;
   }
+  function localSchedule(date, time) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time))
+      return null;
+    const scheduled = new Date(date + "T" + time);
+    const [year, month, day] = date.split("-").map(Number);
+    const [hours, minutes] = time.split(":").map(Number);
+    if (
+      !Number.isFinite(scheduled.getTime()) ||
+      scheduled.getFullYear() !== year ||
+      scheduled.getMonth() !== month - 1 ||
+      scheduled.getDate() !== day ||
+      scheduled.getHours() !== hours ||
+      scheduled.getMinutes() !== minutes
+    )
+      return null;
+    return scheduled;
+  }
   async function loadPage(page) {
     currentPage = page;
     $("job-editor").hidden = true;
@@ -307,8 +324,111 @@
       });
       actionRow.append(btn);
     });
+    let rescheduleForm;
+    if (isOwner) {
+      const rescheduleButton = node("button", "Reschedule job", "secondary");
+      rescheduleButton.type = "button";
+      rescheduleButton.addEventListener("click", () => {
+        rescheduleForm.hidden = false;
+        dateInput.focus();
+      });
+      actionRow.append(rescheduleButton);
+
+      rescheduleForm = document.createElement("form");
+      rescheduleForm.className = "job-form-grid";
+      rescheduleForm.hidden = true;
+      const scheduledAt = job.scheduled_at ? new Date(job.scheduled_at) : null;
+      const dateField = document.createElement("div");
+      const dateLabel = node("label", "Date");
+      const dateInput = document.createElement("input");
+      dateInput.name = "date";
+      dateInput.type = "date";
+      dateInput.required = true;
+      if (scheduledAt && Number.isFinite(scheduledAt.getTime())) {
+        dateInput.value =
+          scheduledAt.getFullYear().toString().padStart(4, "0") +
+          "-" +
+          (scheduledAt.getMonth() + 1).toString().padStart(2, "0") +
+          "-" +
+          scheduledAt.getDate().toString().padStart(2, "0");
+      }
+      dateField.append(dateLabel, dateInput);
+      dateLabel.htmlFor = "reschedule-date-" + job.job_id;
+      dateInput.id = dateLabel.htmlFor;
+
+      const timeField = document.createElement("div");
+      const timeLabel = node("label", "Time");
+      const timeInput = document.createElement("input");
+      timeInput.name = "time";
+      timeInput.type = "time";
+      timeInput.required = true;
+      if (scheduledAt && Number.isFinite(scheduledAt.getTime())) {
+        timeInput.value =
+          scheduledAt.getHours().toString().padStart(2, "0") +
+          ":" +
+          scheduledAt.getMinutes().toString().padStart(2, "0");
+      }
+      timeField.append(timeLabel, timeInput);
+      timeLabel.htmlFor = "reschedule-time-" + job.job_id;
+      timeInput.id = timeLabel.htmlFor;
+
+      const timeZoneNote = node(
+        "p",
+        "Date and time use your time zone: " +
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+        "muted full-width",
+      );
+      const scheduleError = node("p", "", "error full-width");
+      scheduleError.hidden = true;
+      scheduleError.setAttribute("role", "alert");
+      const formActions = node("div", undefined, "job-actions full-width");
+      const saveSchedule = node("button", "Save new schedule", "primary");
+      saveSchedule.type = "submit";
+      const cancelSchedule = node("button", "Cancel", "secondary");
+      cancelSchedule.type = "button";
+      cancelSchedule.addEventListener("click", () => {
+        rescheduleForm.hidden = true;
+        scheduleError.hidden = true;
+      });
+      formActions.append(saveSchedule, cancelSchedule);
+      rescheduleForm.append(
+        dateField,
+        timeField,
+        timeZoneNote,
+        scheduleError,
+        formActions,
+      );
+      rescheduleForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const scheduled = localSchedule(dateInput.value, timeInput.value);
+        if (!scheduled) {
+          scheduleError.textContent = "Choose a valid local date and time.";
+          scheduleError.hidden = false;
+          return;
+        }
+        saveSchedule.disabled = true;
+        cancelSchedule.disabled = true;
+        scheduleError.hidden = true;
+        try {
+          const updatedJob = await api("/jobs/" + job.job_id, {
+            method: "PATCH",
+            body: JSON.stringify({ scheduled_at: scheduled.toISOString() }),
+          });
+          await loadPage("jobs");
+          if (currentUser?.role === "owner" && currentPage === "jobs")
+            showJob(updatedJob);
+        } catch (error) {
+          scheduleError.textContent = error.message;
+          scheduleError.hidden = false;
+        } finally {
+          saveSchedule.disabled = false;
+          cancelSchedule.disabled = false;
+        }
+      });
+    }
 
     details.replaceChildren(heading, meta, list, actionRow);
+    if (rescheduleForm) details.append(rescheduleForm);
 
     // Assignment section — owner only
     if (isOwner) {
@@ -460,10 +580,8 @@
       $("job-error").textContent = "Fill out all required fields.";
       return;
     }
-    const scheduled = new Date(data.date + "T" + data.time);
-    // Reject local times skipped by a daylight-saving clock change.
-    const [hours, minutes] = data.time.split(":").map(Number);
-    if (!Number.isFinite(scheduled.getTime()) || scheduled.getHours() !== hours || scheduled.getMinutes() !== minutes) {
+    const scheduled = localSchedule(data.date, data.time);
+    if (!scheduled) {
       $("job-error").textContent = "Choose a valid local date and time.";
       return;
     }

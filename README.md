@@ -15,8 +15,10 @@ an owner/employee login screen and a small role-aware workspace, served from
 - Employee accounts use the existing database role `technician`; the UI calls
   this role “Employee.” Inactive technicians cannot sign in or use an old session.
 - Jobs are now stored in PostgreSQL so permissions use real assignment records.
-- Scheduling forms are the next task (#6). Customer management UI remains
-  separate from this login issue; the workspace includes a read-only directory.
+- Owners can create and reschedule jobs; assigned employees see the saved
+  schedule in their job list and details.
+- Customer management UI remains separate from login; the workspace includes
+  a read-only directory.
 - Photo uploads, registration, password reset, and invoice UI are not implemented.
 
 ## Tools
@@ -191,14 +193,14 @@ opening cross-origin credential access.
 | GET    | `/jobs`                 | Owners: all jobs. Employees: assigned jobs only                                                       |
 | GET    | `/jobs/:id`             | Same access rules; inaccessible jobs return 404                                                       |
 | POST   | `/jobs`                 | Owner only; creates a persistent requested job                                                        |
-| PATCH  | `/jobs/:id`             | `{ "status": "in_progress" }` or `{ "status": "completed" }`; employees may change assigned jobs only |
+| PATCH  | `/jobs/:id`             | Owner: `{ "scheduled_at": "<ISO timestamp>" }` to reschedule. Status updates: employees may start or complete assigned jobs; owners may also set `requested` or `scheduled`. |
 | GET    | `/technicians`          | Owner only; technician IDs for assignments                                                            |
 | GET    | `/jobs/:id/assignments` | Owner only; current assignments                                                                       |
 | PUT    | `/jobs/:id/assignments` | Owner only; `{ "technician_ids": [1, 2] }` replaces the whole assignment set; `[]` clears it          |
 
-Owners can also set `requested` or `scheduled` via the status endpoint. Only
-`status` is accepted by PATCH, so callers cannot alter ownership, assignments,
-or account roles through that endpoint. Scheduling dates/forms belong to #6.
+Rescheduling requires a valid ISO date/time with `Z` or an explicit UTC offset.
+Only one update field is accepted per PATCH request, so callers cannot alter
+ownership, assignments, or account roles through that endpoint.
 
 Customer creation requires non-empty string fields: `first_name`, `last_name`,
 `email`, `phone`, `street`, `city`, `state`, `zip_code`; email must be valid.
@@ -275,10 +277,10 @@ before demonstrating status updates. No sample dashboard counts are fabricated.
 
 Run `npm run db:migrate` before starting the updated app. Migration 003 adds optional job instructions without changing existing records.
 
-Sign in as an owner, open Jobs, and choose **Create job**. Select an existing customer and active service, enter the title, description, date, time and complete address, then save. The customer address is filled automatically and can be changed for this job. Instructions are optional. The form shows the browser time zone; dates are sent with an explicit UTC offset and stored as timestamps. Saved jobs start as `scheduled` and their details appear immediately. Click a job title to reopen its details.
+Sign in as an owner, open Jobs, and choose **Create job**. Select an existing customer and active service, enter the title, description, date, time and complete address, then save. The customer address is filled automatically and can be changed for this job. Instructions are optional. The form shows the browser time zone; dates are sent with an explicit UTC offset and stored as timestamps. Saved jobs start as `scheduled` and their details appear immediately. Click a job title to reopen its details, then choose **Reschedule job** to edit its date and time. The saved schedule appears in owner and assigned employee job lists and details, including after reload.
 
 Customers and active services must already exist in the database. Service administration and employee assignment UI are outside issue #6. Scheduling alone does not assign employees; their existing assignment permissions still apply.
 
-`POST /jobs` requires customer_id, service_id, title, description, scheduled_at (ISO timestamp with Z or an offset), service_street, service_city, service_state and service_zip_code. It accepts optional instructions. `GET /services` lists active service choices for owners.
+`POST /jobs` requires customer_id, service_id, title, description, scheduled_at (ISO timestamp with Z or an offset), service_street, service_city, service_state and service_zip_code. It accepts optional instructions. `PATCH /jobs/:id` accepts `{ "scheduled_at": "<ISO timestamp>" }` for owner-only rescheduling. `GET /services` lists active service choices for owners.
 
 This feature branch depends on PR #36. Merge that PR first, then retarget this feature PR to main.
