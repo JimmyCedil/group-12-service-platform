@@ -498,6 +498,14 @@ td strong {
 
 /* Scheduling workspace */
 #new-job, #new-customer { width: auto; margin-bottom: 20px; margin-right: 10px; }
+.jobs-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-label { font-size: 13px; font-weight: 650; color: #5e6d80; }
+.filter-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.filter-chip { background: white; border: 1px solid #ccd7e2; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; transition: all 0.15s ease; }
+.filter-chip:hover { background: #f1f5f9; border-color: #94a3b8; }
+.filter-chip.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.assigned-techs { font-size: 12px; color: #233b53; font-weight: 500; }
+.assigned-techs.unassigned { color: #8a97a6; font-style: italic; }
 .job-panel { background: white; border: 1px solid #dce3e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
 .job-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .job-form-grid input, .job-form-grid select, .job-form-grid textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5df; border-radius: 8px; padding: 12px; font: inherit; background: white; }

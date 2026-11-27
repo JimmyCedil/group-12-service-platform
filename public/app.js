@@ -6,6 +6,8 @@
   let viewGeneration = 0;
   let customers = [];
   let services = [];
+  let currentJobStatusFilter = "all";
+  let loadedJobs = [];
 
   function renderServiceOptions(selectedId) {
     const select = $("job-service");
@@ -34,6 +36,12 @@
   function showLogin() {
     viewGeneration++;
     currentUser = undefined;
+    currentJobStatusFilter = "all";
+    loadedJobs = [];
+    document.querySelectorAll(".filter-chip").forEach((c) =>
+      c.classList.toggle("active", c.dataset.status === "all"),
+    );
+    $("jobs-filter-bar").hidden = true;
     $("job-editor").hidden = true;
     $("job-details").hidden = true;
     $("customer-editor").hidden = true;
@@ -81,14 +89,156 @@
       return null;
     return scheduled;
   }
+  function renderRecordsTable(records, page, isOwner) {
+    let displayRecords = records;
+    if (page === "jobs" && currentJobStatusFilter !== "all") {
+      displayRecords = records.filter(
+        (r) => r.status === currentJobStatusFilter,
+      );
+    }
+    if (!displayRecords.length) {
+      let emptyMsg;
+      if (page === "customers") {
+        emptyMsg = "No customers yet.";
+      } else if (records.length > 0) {
+        emptyMsg =
+          "No " + currentJobStatusFilter.replaceAll("_", " ") + " jobs found.";
+      } else if (isOwner) {
+        emptyMsg = "No jobs yet. New jobs will appear here.";
+      } else {
+        emptyMsg =
+          "You have no assigned jobs yet. Check with your owner for your next assignment.";
+      }
+      $("records").replaceChildren(node("div", emptyMsg, "empty"));
+      return;
+    }
+    const table = node("table");
+    const caption = node(
+      "caption",
+      page === "jobs" ? "Accessible jobs" : "Customer directory",
+      "visually-hidden",
+    );
+    table.append(caption);
+    const head = node("thead");
+    const header = node("tr");
+    const labels =
+      page === "jobs"
+        ? ["Job", "Location", "Schedule", "Assigned", "Status", "Progress"]
+        : ["Customer", "Email", "Phone", "City", ""];
+    labels.forEach((label) => {
+      const th = node("th", label);
+      th.scope = "col";
+      header.append(th);
+    });
+    head.append(header);
+    table.append(head);
+    const body = node("tbody");
+    displayRecords.forEach((record) => {
+      const row = node("tr");
+      if (page === "customers") {
+        [
+          record.first_name + " " + record.last_name,
+          record.email,
+          record.phone,
+          record.city,
+        ].forEach((text) => row.append(node("td", text)));
+        const actionsTd = node("td");
+        const viewBtn = node("button", "View", "secondary");
+        viewBtn.type = "button";
+        viewBtn.setAttribute(
+          "aria-label",
+          "View " + record.first_name + " " + record.last_name,
+        );
+        viewBtn.addEventListener("click", () => showCustomer(record));
+        actionsTd.append(viewBtn);
+        row.append(actionsTd);
+      } else {
+        const title = node("td");
+        const detailsButton = node("button", record.title, "text-button");
+        detailsButton.type = "button";
+        detailsButton.addEventListener("click", () => showJob(record));
+        title.append(detailsButton, node("span", record.description, "small"));
+        const assignedTd = node("td");
+        if (record.assigned_names && record.assigned_names.length) {
+          assignedTd.append(
+            node("span", record.assigned_names.join(", "), "assigned-techs"),
+          );
+        } else {
+          assignedTd.append(
+            node("span", "Unassigned", "assigned-techs unassigned"),
+          );
+        }
+        row.append(
+          title,
+          node(
+            "td",
+            [record.service_street, record.service_city]
+              .filter(Boolean)
+              .join(", ") || "Not specified",
+          ),
+          node(
+            "td",
+            record.scheduled_at
+              ? new Date(record.scheduled_at).toLocaleString()
+              : "Not scheduled",
+          ),
+          assignedTd,
+        );
+        const status = node("td");
+        status.append(
+          node(
+            "span",
+            record.status.replaceAll("_", " "),
+            "status " + record.status,
+          ),
+        );
+        row.append(status);
+        const actions = node("td");
+        const buttons = node("div", undefined, "job-actions");
+        const nextActions =
+          record.status === "scheduled"
+            ? [{ value: "in_progress", label: "Start" }]
+            : record.status === "in_progress"
+              ? [{ value: "completed", label: "Complete" }]
+              : [];
+        nextActions.forEach(({ value, label }) => {
+          const button = node("button", label, "secondary");
+          button.type = "button";
+          button.setAttribute("aria-label", label + " " + record.title);
+          button.addEventListener("click", async () => {
+            button.disabled = true;
+            try {
+              await api("/jobs/" + record.job_id, {
+                method: "PATCH",
+                body: JSON.stringify({ status: value }),
+              });
+              await loadPage("jobs");
+            } catch (error) {
+              $("workspace-message").textContent = error.message;
+              button.disabled = false;
+            }
+          });
+          buttons.append(button);
+        });
+        actions.append(buttons);
+        row.append(actions);
+      }
+      body.append(row);
+    });
+    table.append(body);
+    $("records").replaceChildren(table);
+  }
+
   async function loadPage(page) {
     currentPage = page;
     $("job-editor").hidden = true;
     $("job-details").hidden = true;
     $("customer-editor").hidden = true;
     $("service-editor").hidden = true;
+    $("jobs-filter-bar").hidden = page !== "jobs";
     $("new-job").hidden = page !== "jobs" || currentUser?.role !== "owner";
-    $("new-customer").hidden = page !== "customers" || currentUser?.role !== "owner";
+    $("new-customer").hidden =
+      page !== "customers" || currentUser?.role !== "owner";
     const generation = ++viewGeneration;
     const isOwner = currentUser?.role === "owner";
     $("page-title").textContent =
@@ -105,10 +255,43 @@
     $("workspace-message").textContent = "Loading…";
     try {
       let records;
-      if (page === "jobs" && isOwner) {
-        const [jobRows, customerRows] = await Promise.all([api("/jobs"), api("/customers")]);
-        records = jobRows;
-        customers = customerRows;
+      if (page === "jobs") {
+        if (isOwner) {
+          const [jobRows, customerRows, techRows] = await Promise.all([
+            api("/jobs"),
+            api("/customers"),
+            api("/technicians").catch(() => []),
+          ]);
+          customers = customerRows;
+          const techMap = new Map(
+            (techRows || []).map((t) => [t.technician_id, t]),
+          );
+          await Promise.all(
+            jobRows.map(async (job) => {
+              try {
+                const assignments = await api(
+                  "/jobs/" + job.job_id + "/assignments",
+                );
+                job.assigned_names = assignments
+                  .map((a) => {
+                    const tech = techMap.get(a.technician_id);
+                    return tech
+                      ? tech.first_name + " " + tech.last_name
+                      : null;
+                  })
+                  .filter(Boolean);
+              } catch {
+                job.assigned_names = [];
+              }
+            }),
+          );
+          records = jobRows;
+        } else {
+          records = await api("/jobs");
+          records.forEach((job) => {
+            job.assigned_names = ["Assigned to you"];
+          });
+        }
       } else {
         records = await api("/" + page);
       }
@@ -119,131 +302,18 @@
           if (!a.scheduled_at && !b.scheduled_at) return 0;
           if (!a.scheduled_at) return 1;
           if (!b.scheduled_at) return -1;
-          return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+          return (
+            new Date(a.scheduled_at).getTime() -
+            new Date(b.scheduled_at).getTime()
+          );
         });
+        loadedJobs = records;
       }
 
       if (generation !== viewGeneration || currentPage !== page || !currentUser)
         return;
       $("workspace-message").textContent = "";
-      if (!records.length) {
-        $("records").append(
-          node(
-            "div",
-            page === "customers"
-              ? "No customers yet."
-              : isOwner
-                ? "No jobs yet. New jobs will appear here."
-                : "You have no assigned jobs yet. Check with your owner for your next assignment.",
-            "empty",
-          ),
-        );
-        return;
-      }
-      const table = node("table");
-      const caption = node(
-        "caption",
-        page === "jobs" ? "Accessible jobs" : "Customer directory",
-        "visually-hidden",
-      );
-      table.append(caption);
-      const head = node("thead");
-      const header = node("tr");
-      const labels =
-        page === "jobs"
-          ? ["Job", "Location", "Schedule", "Status", "Progress"]
-          : ["Customer", "Email", "Phone", "City", ""];
-      labels.forEach((label) => {
-        const th = node("th", label);
-        th.scope = "col";
-        header.append(th);
-      });
-      head.append(header);
-      table.append(head);
-      const body = node("tbody");
-      records.forEach((record) => {
-        const row = node("tr");
-        if (page === "customers") {
-          [
-            record.first_name + " " + record.last_name,
-            record.email,
-            record.phone,
-            record.city,
-          ].forEach((text) => row.append(node("td", text)));
-          const actionsTd = node("td");
-          const viewBtn = node("button", "View", "secondary");
-          viewBtn.type = "button";
-          viewBtn.setAttribute("aria-label", "View " + record.first_name + " " + record.last_name);
-          viewBtn.addEventListener("click", () => showCustomer(record));
-          actionsTd.append(viewBtn);
-          row.append(actionsTd);
-        } else {
-          const title = node("td");
-          const detailsButton = node("button", record.title, "text-button");
-          detailsButton.type = "button";
-          detailsButton.addEventListener("click", () => showJob(record));
-          title.append(
-            detailsButton,
-            node("span", record.description, "small"),
-          );
-          row.append(
-            title,
-            node(
-              "td",
-              [record.service_street, record.service_city]
-                .filter(Boolean)
-                .join(", ") || "Not specified",
-            ),
-            node(
-              "td",
-              record.scheduled_at
-                ? new Date(record.scheduled_at).toLocaleString()
-                : "Not scheduled",
-            ),
-          );
-          const status = node("td");
-          status.append(
-            node(
-              "span",
-              record.status.replaceAll("_", " "),
-              "status " + record.status,
-            ),
-          );
-          row.append(status);
-          const actions = node("td");
-          const buttons = node("div", undefined, "job-actions");
-          const nextActions =
-            record.status === "scheduled"
-              ? [{ value: "in_progress", label: "Start" }]
-              : record.status === "in_progress"
-                ? [{ value: "completed", label: "Complete" }]
-                : [];
-          nextActions.forEach(({ value, label }) => {
-            const button = node("button", label, "secondary");
-            button.type = "button";
-            button.setAttribute("aria-label", label + " " + record.title);
-            button.addEventListener("click", async () => {
-              button.disabled = true;
-              try {
-                await api("/jobs/" + record.job_id, {
-                  method: "PATCH",
-                  body: JSON.stringify({ status: value }),
-                });
-                await loadPage("jobs");
-              } catch (error) {
-                $("workspace-message").textContent = error.message;
-                button.disabled = false;
-              }
-            });
-            buttons.append(button);
-          });
-          actions.append(buttons);
-          row.append(actions);
-        }
-        body.append(row);
-      });
-      table.append(body);
-      $("records").replaceChildren(table);
+      renderRecordsTable(records, page, isOwner);
     } catch (error) {
       $("workspace-message").textContent = error.message;
     }
@@ -324,6 +394,12 @@
       });
       actionRow.append(btn);
     });
+    const backBtn = node("button", "← Back to jobs", "secondary");
+    backBtn.type = "button";
+    backBtn.addEventListener("click", () => {
+      details.hidden = true;
+    });
+    actionRow.append(backBtn);
     let rescheduleForm;
     if (isOwner) {
       const rescheduleButton = node("button", "Reschedule job", "secondary");
@@ -712,6 +788,18 @@
     } catch (error) {
       $("workspace-message").textContent = error.message;
     }
+  });
+  document.querySelectorAll(".filter-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      document
+        .querySelectorAll(".filter-chip")
+        .forEach((c) => c.classList.remove("active"));
+      chip.classList.add("active");
+      currentJobStatusFilter = chip.dataset.status;
+      if (currentPage === "jobs" && currentUser) {
+        renderRecordsTable(loadedJobs, "jobs", currentUser.role === "owner");
+      }
+    });
   });
   $("jobs-nav").addEventListener("click", () => loadPage("jobs"));
   $("customers-nav").addEventListener("click", () => loadPage("customers"));

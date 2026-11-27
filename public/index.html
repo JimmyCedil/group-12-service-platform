@@ -115,6 +115,16 @@
           </div>
           <button id="new-job" class="primary" type="button" hidden>Create job</button>
           <button id="new-customer" class="primary" type="button" hidden>Add customer</button>
+          <div id="jobs-filter-bar" class="jobs-filter-bar" hidden>
+            <span class="filter-label">Filter:</span>
+            <div class="filter-options" role="group" aria-label="Filter jobs by status">
+              <button type="button" class="filter-chip active" data-status="all">All</button>
+              <button type="button" class="filter-chip" data-status="scheduled">Scheduled</button>
+              <button type="button" class="filter-chip" data-status="in_progress">In progress</button>
+              <button type="button" class="filter-chip" data-status="completed">Completed</button>
+              <button type="button" class="filter-chip" data-status="requested">Requested</button>
+            </div>
+          </div>
           <section id="job-editor" class="job-panel" aria-labelledby="job-form-title" hidden>
             <h2 id="job-form-title">Schedule a job</h2>
             <p id="schedule-zone" class="muted"></p>
