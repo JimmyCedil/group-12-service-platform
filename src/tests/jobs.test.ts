@@ -291,5 +291,12 @@ describe("authorized jobs", () => {
     expect(result.body.instructions).toBe("");
     expect(result.body.status).toBe("scheduled");
   });
-
+  it("filters jobs by status when status query parameter is provided", async () => {
+    const scheduled = await f.owner.get("/jobs?status=scheduled").expect(200);
+    expect(scheduled.body.every((j: { status: string }) => j.status === "scheduled")).toBe(true);
+    expect(scheduled.body.length).toBeGreaterThan(0);
+    const inProgress = await f.owner.get("/jobs?status=in_progress").expect(200);
+    expect(inProgress.body.every((j: { status: string }) => j.status === "in_progress")).toBe(true);
+    expect(inProgress.body).toHaveLength(0);
+  });
 });

@@ -51,9 +51,21 @@ export function createAuthorizedJobsRouter(db: Kysely<Database>): Router {
     }
     next();
   });
-  router.get("/", async (_req, res) => {
+  router.get("/", async (req, res) => {
+    let query = visibleJobs(res.locals.user);
+    const statusParam = req.query.status;
+    if (
+      typeof statusParam === "string" &&
+      ["requested", "scheduled", "in_progress", "completed"].includes(statusParam)
+    ) {
+      query = query.where(
+        "job.status",
+        "=",
+        statusParam as "requested" | "scheduled" | "in_progress" | "completed",
+      );
+    }
     res.json(
-      await visibleJobs(res.locals.user)
+      await query
         .orderBy("job.job_id", "desc")
         .execute(),
     );
